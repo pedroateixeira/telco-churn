@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dados processados são regenerados pelo pipeline
+data/processed/*
+!data/processed/.gitkeep
+
+# Modelos: por padrão não se versiona artefato binário.
+# Exceção deliberada: o Streamlit Community Cloud precisa do modelo no repositório
+# para servir o dashboard, e ele tem poucos KB.
+*.pkl
+*.joblib
+!models/modelo.joblib
+
+# Relatórios gerados
+reports/figures/*
+!reports/figures/.gitkeep
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env / secrets
+.env
