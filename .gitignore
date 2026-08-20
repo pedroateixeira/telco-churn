@@ -22,9 +22,11 @@ data/processed/*
 # entrega. Só o par de produção (modelo.joblib + metricas.json) é versionado.
 models/*_sem_total_charges.*
 
-# Relatórios gerados
-reports/figures/*
-!reports/figures/.gitkeep
+# Figuras: versionadas de propósito. São geradas por
+# `python -m telco_churn.comparacao`, mas o README e o notebook as exibem, e um
+# repositório que mostra gráficos quebrados até alguém rodar o pipeline não
+# serve à leitura de 40 segundos.
+!reports/figures/*.png
 
 # OS / editor
 .DS_Store

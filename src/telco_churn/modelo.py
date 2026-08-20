@@ -6,15 +6,18 @@ rodar antes do split porque é determinístico linha a linha — ver a docstring
 daquela função.
 """
 
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
+from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
     roc_auc_score,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import RepeatedStratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
 
 from telco_churn.dados import ALVO
@@ -43,8 +46,48 @@ def dividir(
     return train_test_split(X, y, test_size=test_size, stratify=y, random_state=seed)
 
 
+class RegraContrato(BaseEstimator, ClassifierMixin):
+    """Baseline de uma linha: quem está em contrato mês a mês é quem cancela.
+
+    Não é formalidade. A EDA mostrou que `Contract` sozinho separa 42,7% de
+    churn contra 11,3% e 2,8% — um classificador razoável escrito em uma
+    condição. Um modelo que não supere isso é um resultado, e é melhor
+    descobrir antes da entrevista do que durante.
+
+    `predict` aplica a regra crua. `predict_proba` devolve a taxa de churn
+    observada no treino dentro de cada grupo, o que faz do baseline um
+    competidor honesto também em Brier e PR-AUC — comparar uma regra 0/1 com
+    modelos probabilísticos usando métricas de probabilidade seria uma
+    vitória de régua torta.
+    """
+
+    def __init__(self, coluna: str = "Contract", categoria: str = "Month-to-month"):
+        self.coluna = coluna
+        self.categoria = categoria
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "RegraContrato":
+        marcado = X[self.coluna] == self.categoria
+        y = pd.Series(np.asarray(y), index=X.index)
+        self.classes_ = np.array([0, 1])
+        self.taxa_marcado_ = float(y[marcado].mean())
+        self.taxa_resto_ = float(y[~marcado].mean())
+        return self
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        marcado = (X[self.coluna] == self.categoria).to_numpy()
+        p = np.where(marcado, self.taxa_marcado_, self.taxa_resto_)
+        return np.column_stack([1 - p, p])
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return (X[self.coluna] == self.categoria).astype(int).to_numpy()
+
+
 def construir_pipeline(estimador: BaseEstimator, usar_total_charges: bool = True) -> Pipeline:
-    """Encaixa o pré-processador antes do estimador."""
+    """Encaixa o pré-processador antes do estimador.
+
+    A `RegraContrato` é a exceção: ela lê a coluna `Contract` como texto e não
+    passa por aqui, porque o one-hot destruiria justamente o que ela usa.
+    """
     return Pipeline(
         [
             ("pre", construir_preprocessador(usar_total_charges=usar_total_charges)),
@@ -69,6 +112,65 @@ def avaliar(pipeline: Pipeline, X: pd.DataFrame, y: pd.Series) -> dict[str, floa
         "taxa_base": float(np.mean(y)),
         "n": int(len(y)),
     }
+
+
+def avaliar_cv(
+    construtor: Callable[[], BaseEstimator],
+    X: pd.DataFrame,
+    y: pd.Series,
+    n_splits: int = 5,
+    n_repeats: int = 3,
+    seed: int = SEED_PADRAO,
+) -> dict[str, float]:
+    """Média e desvio das métricas em validação cruzada repetida, sobre o TREINO.
+
+    Existe por um motivo específico: o conjunto de teste tem ~1.400 linhas, e o
+    desvio-padrão do ROC-AUC nesse tamanho é da ordem de ±0,01. Comparar seis
+    modelos por um único split significaria decidir na quarta casa decimal de
+    uma amostra — boa parte das diferenças cairia dentro do ruído.
+
+    Por isso a escolha do campeão se faz aqui, com 5 folds repetidos 3 vezes, e
+    o conjunto de teste fica intocado para uma única medição final. Olhar para o
+    teste a cada comparação é como ajustá-lo a olho: ele deixa de ser uma
+    estimativa honesta do desempenho fora da amostra.
+
+    `construtor` é uma função que devolve um estimador novo, e não um estimador
+    já pronto — cada fold precisa treinar do zero.
+    """
+    cv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
+    resultados: dict[str, list[float]] = {"roc_auc": [], "pr_auc": [], "brier": []}
+
+    for idx_treino, idx_val in cv.split(X, y):
+        X_treino, X_val = X.iloc[idx_treino], X.iloc[idx_val]
+        y_treino, y_val = y.iloc[idx_treino], y.iloc[idx_val]
+
+        modelo = clone(construtor())
+        modelo.fit(X_treino, y_treino)
+        p = modelo.predict_proba(X_val)[:, 1]
+
+        resultados["roc_auc"].append(roc_auc_score(y_val, p))
+        resultados["pr_auc"].append(average_precision_score(y_val, p))
+        resultados["brier"].append(brier_score_loss(y_val, p))
+
+    resumo: dict[str, float] = {}
+    for metrica, valores in resultados.items():
+        resumo[f"{metrica}_media"] = float(np.mean(valores))
+        resumo[f"{metrica}_desvio"] = float(np.std(valores))
+    resumo["n_ajustes"] = n_splits * n_repeats
+    return resumo
+
+
+def curva_calibracao(y: pd.Series, p: np.ndarray, n_bins: int = 10) -> pd.DataFrame:
+    """Frequência observada contra probabilidade prevista, por faixa.
+
+    Um modelo calibrado põe os pontos sobre a diagonal: entre os clientes a quem
+    ele atribui 30% de risco, 30% de fato cancelam. A Fase 4 calcula valor
+    esperado a partir do valor absoluto dessa probabilidade — se ela estiver
+    inflada, a campanha inteira é dimensionada errado, por mais que o ranking
+    (e portanto o ROC-AUC) esteja perfeito.
+    """
+    observado, previsto = calibration_curve(y, p, n_bins=n_bins, strategy="quantile")
+    return pd.DataFrame({"previsto": previsto, "observado": observado})
 
 
 def lift_por_decil(y: pd.Series, p: np.ndarray, n_decis: int = 10) -> pd.DataFrame:

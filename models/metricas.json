@@ -1,10 +1,11 @@
 {
   "versao_pacote": "0.1.0",
-  "treinado_em": "2026-08-20T20:24:59+00:00",
+  "treinado_em": "2026-08-20T21:39:02+00:00",
   "seed": 42,
   "test_size": 0.2,
   "usar_total_charges": true,
-  "modelo": "LogisticRegression",
+  "modelo": "XGBoost",
+  "estimador": "XGBClassifier",
   "versoes": {
     "python": "3.12.2",
     "sklearn": "1.9.0",
@@ -32,45 +33,17 @@
     "TotalCharges"
   ],
   "n_features": 26,
-  "features": [
-    "num__tenure",
-    "num__MonthlyCharges",
-    "num__TotalCharges",
-    "cat__InternetService_DSL",
-    "cat__InternetService_Fiber optic",
-    "cat__InternetService_No",
-    "cat__Contract_Month-to-month",
-    "cat__Contract_One year",
-    "cat__Contract_Two year",
-    "cat__PaymentMethod_Bank transfer (automatic)",
-    "cat__PaymentMethod_Credit card (automatic)",
-    "cat__PaymentMethod_Electronic check",
-    "cat__PaymentMethod_Mailed check",
-    "bin__gender",
-    "bin__SeniorCitizen",
-    "bin__Partner",
-    "bin__Dependents",
-    "bin__PhoneService",
-    "bin__MultipleLines",
-    "bin__OnlineSecurity",
-    "bin__OnlineBackup",
-    "bin__DeviceProtection",
-    "bin__TechSupport",
-    "bin__StreamingTV",
-    "bin__StreamingMovies",
-    "bin__PaperlessBilling"
-  ],
   "teste": {
-    "roc_auc": 0.8424216590457,
-    "pr_auc": 0.6358741186543164,
-    "brier": 0.13790189376702244,
+    "roc_auc": 0.8447932005476764,
+    "pr_auc": 0.6638678979905821,
+    "brier": 0.13561078906059265,
     "taxa_base": 0.2654364797728886,
     "n": 1409
   },
   "treino": {
-    "roc_auc": 0.8492417747488811,
-    "pr_auc": 0.6672363427453175,
-    "brier": 0.13360377527906192,
+    "roc_auc": 0.884021716909308,
+    "pr_auc": 0.7365358322773737,
+    "brier": 0.11892512440681458,
     "taxa_base": 0.2653532126375577,
     "n": 5634
   },
@@ -78,81 +51,81 @@
     {
       "decil": 1,
       "n": 141,
-      "churns": 107,
-      "taxa_churn": 0.7588652482269503,
-      "lift": 2.8589335153790723,
-      "churns_acumulados": 107,
-      "captura_acumulada": 0.28609625668449196
+      "churns": 108,
+      "taxa_churn": 0.7659574468085106,
+      "lift": 2.885652520195699,
+      "churns_acumulados": 108,
+      "captura_acumulada": 0.2887700534759358
     },
     {
       "decil": 2,
       "n": 141,
-      "churns": 80,
-      "taxa_churn": 0.5673758865248227,
-      "lift": 2.1375203853301477,
-      "churns_acumulados": 187,
-      "captura_acumulada": 0.5
+      "churns": 82,
+      "taxa_churn": 0.5815602836879432,
+      "lift": 2.190958394963401,
+      "churns_acumulados": 190,
+      "captura_acumulada": 0.5080213903743316
     },
     {
       "decil": 3,
       "n": 141,
-      "churns": 56,
-      "taxa_churn": 0.3971631205673759,
-      "lift": 1.4962642697311033,
-      "churns_acumulados": 243,
-      "captura_acumulada": 0.6497326203208557
+      "churns": 60,
+      "taxa_churn": 0.425531914893617,
+      "lift": 1.6031402889976105,
+      "churns_acumulados": 250,
+      "captura_acumulada": 0.6684491978609626
     },
     {
       "decil": 4,
       "n": 141,
-      "churns": 49,
-      "taxa_churn": 0.3475177304964539,
-      "lift": 1.3092312360147154,
-      "churns_acumulados": 292,
-      "captura_acumulada": 0.7807486631016043
+      "churns": 43,
+      "taxa_churn": 0.3049645390070922,
+      "lift": 1.1489172071149543,
+      "churns_acumulados": 293,
+      "captura_acumulada": 0.7834224598930482
     },
     {
       "decil": 5,
       "n": 141,
-      "churns": 35,
-      "taxa_churn": 0.24822695035460993,
-      "lift": 0.9351651685819394,
+      "churns": 34,
+      "taxa_churn": 0.24113475177304963,
+      "lift": 0.9084461637653126,
       "churns_acumulados": 327,
       "captura_acumulada": 0.8743315508021391
     },
     {
       "decil": 6,
       "n": 140,
-      "churns": 22,
-      "taxa_churn": 0.15714285714285714,
-      "lift": 0.5920168067226891,
-      "churns_acumulados": 349,
-      "captura_acumulada": 0.9331550802139037
+      "churns": 23,
+      "taxa_churn": 0.16428571428571428,
+      "lift": 0.6189266615737203,
+      "churns_acumulados": 350,
+      "captura_acumulada": 0.9358288770053476
     },
     {
       "decil": 7,
       "n": 141,
-      "churns": 16,
-      "taxa_churn": 0.11347517730496454,
-      "lift": 0.4275040770660295,
-      "churns_acumulados": 365,
-      "captura_acumulada": 0.9759358288770054
+      "churns": 12,
+      "taxa_churn": 0.0851063829787234,
+      "lift": 0.3206280577995221,
+      "churns_acumulados": 362,
+      "captura_acumulada": 0.9679144385026738
     },
     {
       "decil": 8,
       "n": 141,
-      "churns": 6,
-      "taxa_churn": 0.0425531914893617,
-      "lift": 0.16031402889976104,
-      "churns_acumulados": 371,
-      "captura_acumulada": 0.9919786096256684
+      "churns": 8,
+      "taxa_churn": 0.05673758865248227,
+      "lift": 0.21375203853301475,
+      "churns_acumulados": 370,
+      "captura_acumulada": 0.9893048128342246
     },
     {
       "decil": 9,
       "n": 141,
-      "churns": 2,
-      "taxa_churn": 0.014184397163120567,
-      "lift": 0.05343800963325369,
+      "churns": 3,
+      "taxa_churn": 0.02127659574468085,
+      "lift": 0.08015701444988052,
       "churns_acumulados": 373,
       "captura_acumulada": 0.9973262032085561
     },
@@ -166,32 +139,5 @@
       "captura_acumulada": 1.0
     }
   ],
-  "coeficientes": {
-    "num__tenure": -1.2473936398708563,
-    "num__MonthlyCharges": -0.26976430567988224,
-    "num__TotalCharges": 0.5237887057503862,
-    "cat__InternetService_DSL": -0.2454693286197921,
-    "cat__InternetService_Fiber optic": 0.7792026524870082,
-    "cat__InternetService_No": -1.2647272809696464,
-    "cat__Contract_Month-to-month": 0.44177378228756026,
-    "cat__Contract_One year": -0.25822296275424955,
-    "cat__Contract_Two year": -0.9145447766357555,
-    "cat__PaymentMethod_Bank transfer (automatic)": -0.2893223142805336,
-    "cat__PaymentMethod_Credit card (automatic)": -0.3198638461795883,
-    "cat__PaymentMethod_Electronic check": 0.09562847034675387,
-    "cat__PaymentMethod_Mailed check": -0.2174362669890629,
-    "bin__gender": 0.019823887428199738,
-    "bin__SeniorCitizen": 0.14577140464798669,
-    "bin__Partner": 0.018075179439399416,
-    "bin__Dependents": -0.22199192280713698,
-    "bin__PhoneService": -0.39545292456075976,
-    "bin__MultipleLines": 0.33019314500086205,
-    "bin__OnlineSecurity": -0.37660958743608464,
-    "bin__OnlineBackup": -0.13111053359251548,
-    "bin__DeviceProtection": 0.005103104364598371,
-    "bin__TechSupport": -0.32670563174642725,
-    "bin__StreamingTV": 0.3106357488308232,
-    "bin__StreamingMovies": 0.3105882236046769,
-    "bin__PaperlessBilling": 0.3719359871335197
-  }
+  "coeficientes": {}
 }

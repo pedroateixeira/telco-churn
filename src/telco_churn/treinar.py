@@ -14,16 +14,15 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import sklearn
-from sklearn.linear_model import LogisticRegression
 
 from telco_churn import __version__
+from telco_churn.catalogo import catalogo
 from telco_churn.dados import RAIZ_PROJETO, caminho_padrao, carregar_tratado
 from telco_churn.features import nomes_features
 from telco_churn.modelo import (
     SEED_PADRAO,
     TEST_SIZE_PADRAO,
     avaliar,
-    construir_pipeline,
     dividir,
     lift_por_decil,
 )
@@ -31,16 +30,39 @@ from telco_churn.modelo import (
 SAIDA_PADRAO = RAIZ_PROJETO / "models"
 
 
-def _coeficientes(pipeline) -> dict[str, float]:
-    """Coeficientes do modelo linear, nomeados. Vazio para estimadores sem `coef_`."""
-    estimador = pipeline.named_steps["clf"]
+def modelo_campeao(saida: Path = SAIDA_PADRAO) -> str:
+    """Nome do modelo escolhido pela comparação da Fase 3.
+
+    Lê `models/comparacao.json` em vez de trazer o nome escrito no código: quem
+    decide o campeão é a validação cruzada, e o treino apenas persiste a
+    decisão. Se a comparação ainda não rodou, cai na regressão logística, que é
+    o modelo mais simples da escada.
+    """
+    caminho = saida / "comparacao.json"
+    if not caminho.exists():
+        return "Regressão logística"
+    return json.loads(caminho.read_text(encoding="utf-8"))["campeao_cv"]
+
+
+def _coeficientes(modelo) -> dict[str, float]:
+    """Coeficientes do modelo linear, nomeados. Vazio para quem não tem `coef_`."""
+    passos = getattr(modelo, "named_steps", None)
+    if passos is None or "clf" not in passos:
+        return {}
+    estimador = passos["clf"]
     if not hasattr(estimador, "coef_"):
         return {}
-    nomes = nomes_features(pipeline.named_steps["pre"])
+    nomes = nomes_features(passos["pre"])
     return {
-        nome: float(valor)
-        for nome, valor in zip(nomes, estimador.coef_[0], strict=True)
+        nome: float(valor) for nome, valor in zip(nomes, estimador.coef_[0], strict=True)
     }
+
+
+def _n_features(modelo, X) -> int:
+    passos = getattr(modelo, "named_steps", None)
+    if passos is None or "pre" not in passos:
+        return X.shape[1]
+    return len(nomes_features(passos["pre"]))
 
 
 def _formatar_metricas(metricas: dict[str, float | int]) -> str:
@@ -59,6 +81,7 @@ def treinar(
     saida: Path = SAIDA_PADRAO,
     caminho_dados: Path | None = None,
     test_size: float = TEST_SIZE_PADRAO,
+    modelo: str | None = None,
 ) -> dict:
     """Carrega, valida, trata, divide, treina, avalia e salva."""
     print(f"Lendo {caminho_dados or caminho_padrao()}")
@@ -70,17 +93,15 @@ def treinar(
     if not usar_total_charges:
         print("  ablação: TotalCharges fora do modelo")
 
-    # A Fase 2 entrega um estimador só. A escada completa — regra de uma linha,
-    # logística, boosting — é a Fase 3; aqui o objetivo é o encanamento rodando
-    # de ponta a ponta, não escolher o campeão.
-    #
-    # Sem random_state: o solver lbfgs é determinístico, e o parâmetro só teria
-    # efeito com sag/saga/liblinear. Passá-lo sugeriria uma escolha aleatória
-    # que não existe — a reprodutibilidade aqui vem do seed do split.
-    pipeline = construir_pipeline(
-        LogisticRegression(max_iter=1000),
-        usar_total_charges=usar_total_charges,
-    )
+    nome_modelo = modelo or modelo_campeao(saida)
+    fabricas = catalogo(usar_total_charges=usar_total_charges, seed=seed)
+    if nome_modelo not in fabricas:
+        raise SystemExit(
+            f"modelo desconhecido: {nome_modelo!r}. Disponíveis: {list(fabricas)}"
+        )
+    print(f"  modelo: {nome_modelo}")
+
+    pipeline = fabricas[nome_modelo]()
     pipeline.fit(X_treino, y_treino)
 
     metricas_teste = avaliar(pipeline, X_teste, y_teste)
@@ -105,14 +126,14 @@ def treinar(
     caminho_modelo = saida / f"modelo{sufixo}.joblib"
     joblib.dump(pipeline, caminho_modelo)
 
-    preprocessador = pipeline.named_steps["pre"]
     relatorio = {
         "versao_pacote": __version__,
         "treinado_em": datetime.now(UTC).isoformat(timespec="seconds"),
         "seed": seed,
         "test_size": test_size,
         "usar_total_charges": usar_total_charges,
-        "modelo": type(pipeline.named_steps["clf"]).__name__,
+        "modelo": nome_modelo,
+        "estimador": type(getattr(pipeline, "named_steps", {"clf": pipeline})["clf"]).__name__,
         # joblib grava um pickle de objetos sklearn. Carregar isso com outra
         # versão da biblioteca dá, no melhor caso, InconsistentVersionWarning;
         # no pior, um objeto que desserializa e prediz diferente. Registrar o
@@ -123,8 +144,7 @@ def treinar(
             "pandas": pd.__version__,
         },
         "colunas_entrada": list(X_treino.columns),
-        "n_features": len(nomes_features(preprocessador)),
-        "features": nomes_features(preprocessador),
+        "n_features": _n_features(pipeline, X_treino),
         "teste": metricas_teste,
         "treino": metricas_treino,
         "lift_por_decil": lift.astype({"decil": int}).to_dict(orient="records"),
@@ -174,6 +194,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--saida", type=Path, default=SAIDA_PADRAO, help="Onde salvar os artefatos."
     )
+    parser.add_argument(
+        "--modelo",
+        default=None,
+        help="Modelo do catálogo (padrão: o campeão registrado em comparacao.json).",
+    )
     args = parser.parse_args(argv)
 
     treinar(
@@ -182,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
         saida=args.saida,
         caminho_dados=args.dados,
         test_size=args.test_size,
+        modelo=args.modelo,
     )
 
 
