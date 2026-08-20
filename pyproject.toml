@@ -30,6 +30,10 @@ packages = ["src/telco_churn"]
 
 [tool.ruff]
 line-length = 100
+# O notebook de EDA é narrativa exploratória, não código de produção: as regras
+# de estilo aqui só produziriam ruído (comentários longos em prosa, imports na
+# ordem em que a análise precisou deles). O que é implantado vive em src/.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
