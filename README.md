@@ -16,7 +16,7 @@ Já demonstrados no notebook, contra uma taxa base de **26,5%**:
 
 - **Contrato é o sinal dominante.** Mês a mês: 42,7% · Um ano: 11,3% · Dois anos: 2,8%.
 - **O churn se concentra no começo da vida do cliente.** Tenure mediano de 10 meses entre quem cancela, contra 38 entre quem fica.
-- **Fibra ótica cancela mais que DSL** (41,9% vs 19,0%) — e a explicação óbvia, preço, **não se sustenta**: dentro da fibra, quanto mais caro o plano, *menor* o churn (55,7% no quartil barato → 26,3% no caro). O que a mensalidade baixa marca é cliente novo, sem serviços adicionais e sem fidelidade.
+- **Fibra ótica cancela mais que DSL** (41,9% vs 19,0%) — e a explicação óbvia, preço, **não se sustenta**: dentro da fibra, quanto mais caro o plano, *menor* o churn (55,7% no quartil barato → 26,3% no caro). O que a mensalidade baixa marca é cliente novo, sem serviços adicionais e sem fidelidade. Controlando contrato e tempo de casa, ainda sobram **28 pontos** de diferença (70,2% vs 42,5%) que a base não explica — não há nenhuma coluna de qualidade de serviço, suporte ou concorrência. Fica como pergunta aberta, não como causa presumida.
 - **`TotalCharges` é redundante.** É reconstituível a partir de `tenure × MonthlyCharges` — a mediana do resíduo é exatamente 0,00.
 
 A redação final dos cinco achados entra no notebook na próxima fase.
