@@ -10,21 +10,10 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from telco_churn.dados import (
-    ALVO,
+    COLUNAS_BINARIAS_MODELO,
     COLUNAS_CATEGORICAS,
     COLUNAS_NUMERICAS,
-    SCHEMA_BRUTO,
 )
-
-# Colunas 0/1 depois de `dados.tratar`: tudo que sobra quando se tiram as
-# numéricas, as categóricas de texto, o alvo e o identificador. Derivar isto do
-# schema, em vez de escrever a lista à mão, garante que uma coluna nova no dado
-# não passe despercebida — ela apareceria aqui e quebraria o teste de schema.
-COLUNAS_BINARIAS_MODELO = [
-    col
-    for col in SCHEMA_BRUTO
-    if col not in {*COLUNAS_NUMERICAS, *COLUNAS_CATEGORICAS, ALVO, "customerID"}
-]
 
 
 def construir_preprocessador(usar_total_charges: bool = True) -> ColumnTransformer:
@@ -56,7 +45,8 @@ def construir_preprocessador(usar_total_charges: bool = True) -> ColumnTransform
                 COLUNAS_CATEGORICAS,
             ),
             # Já são 0/1: escalar não mudaria nada e só atrapalharia a leitura
-            # dos coeficientes.
+            # dos coeficientes. Que essa lista seja de fato 0/1 é garantido por
+            # `dados.validar_tratado`, e não por convenção entre os módulos.
             ("bin", "passthrough", COLUNAS_BINARIAS_MODELO),
         ],
         # Explícito de propósito: coluna nova no dado não entra no modelo sem

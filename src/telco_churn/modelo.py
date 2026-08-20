@@ -21,10 +21,11 @@ from telco_churn.dados import ALVO
 from telco_churn.features import construir_preprocessador
 
 SEED_PADRAO = 42
+TEST_SIZE_PADRAO = 0.2
 
 
 def dividir(
-    df: pd.DataFrame, test_size: float = 0.2, seed: int = SEED_PADRAO
+    df: pd.DataFrame, test_size: float = TEST_SIZE_PADRAO, seed: int = SEED_PADRAO
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """Split estratificado por `Churn`.
 
@@ -52,7 +53,7 @@ def construir_pipeline(estimador: BaseEstimator, usar_total_charges: bool = True
     )
 
 
-def avaliar(pipeline: Pipeline, X: pd.DataFrame, y: pd.Series) -> dict[str, float]:
+def avaliar(pipeline: Pipeline, X: pd.DataFrame, y: pd.Series) -> dict[str, float | int]:
     """Métricas de um pipeline já treinado, sobre um conjunto qualquer.
 
     ROC-AUC ordena; PR-AUC é a que importa com classe desbalanceada; Brier mede
@@ -79,8 +80,22 @@ def lift_por_decil(y: pd.Series, p: np.ndarray, n_decis: int = 10) -> pd.DataFra
 
     Lift de 2,5 no primeiro decil significa: entre os 10% mais arriscados, a
     taxa de churn é 2,5x a da carteira inteira.
+
+    Levanta `ValueError` em recortes pequenos ou sem nenhum churn. Os dois casos
+    são plausíveis no dashboard, onde a base é filtrada interativamente, e nos
+    dois a função devolveria uma tabela sem sentido: com menos linhas que decis
+    o `qcut` produz faixas vazias e rótulos salteados (1, 5, 10); sem nenhum
+    churn, lift e captura viram `NaN` por divisão por zero. Falhar alto é melhor
+    que devolver um gráfico que parece certo.
     """
     ranking = pd.DataFrame({"y": np.asarray(y), "p": np.asarray(p)})
+
+    if len(ranking) < n_decis:
+        raise ValueError(
+            f"lift por decil precisa de ao menos {n_decis} clientes, recebeu {len(ranking)}"
+        )
+    if ranking["y"].sum() == 0:
+        raise ValueError("lift por decil não é definido em um recorte sem nenhum churn")
 
     # rank antes de cortar: probabilidades empatadas são comuns e o qcut puro
     # falharia ao tentar criar bordas iguais.

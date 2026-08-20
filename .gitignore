@@ -18,6 +18,10 @@ data/processed/*
 *.joblib
 !models/modelo.joblib
 
+# Artefatos de ablação e de outras variantes são resultado de experimento, não
+# entrega. Só o par de produção (modelo.joblib + metricas.json) é versionado.
+models/*_sem_total_charges.*
+
 # Relatórios gerados
 reports/figures/*
 !reports/figures/.gitkeep

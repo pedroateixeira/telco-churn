@@ -12,8 +12,12 @@ from pathlib import Path
 import pandas as pd
 from pandas.api import types as pdt
 
+RAIZ_PROJETO = Path(__file__).resolve().parents[2]
+
 ALVO = "Churn"
 
+# Colunas mapeadas de "Yes"/"No" para 1/0 por `tratar`. O alvo está incluído de
+# propósito: `Churn` passa pelo mesmo mapeamento.
 COLUNAS_BINARIAS = ["Partner", "Dependents", "PhoneService", "PaperlessBilling", "Churn"]
 
 COLUNAS_ADDON = [
@@ -66,6 +70,16 @@ SCHEMA_BRUTO: dict[str, tuple[str, tuple[str, ...] | None]] = {
 }
 
 
+# Colunas 0/1 depois de `tratar`: tudo que sobra quando se tiram as numéricas,
+# as categóricas de texto, o alvo e o identificador. Derivar do schema, em vez
+# de escrever a lista à mão, evita que as duas versões divirjam.
+COLUNAS_BINARIAS_MODELO = [
+    col
+    for col in SCHEMA_BRUTO
+    if col not in {*COLUNAS_NUMERICAS, *COLUNAS_CATEGORICAS, ALVO, "customerID"}
+]
+
+
 class ErroDeSchema(ValueError):
     """O dado de entrada não é o que o pipeline espera."""
 
@@ -77,7 +91,7 @@ def caminho_padrao() -> Path:
     quem inicia o processo — notebook, `python -m`, ou o Streamlit Cloud — e
     ancorar no arquivo é a única forma de funcionar nos três casos.
     """
-    return Path(__file__).resolve().parents[2] / "data" / "raw" / "telco_customer_churn.csv"
+    return RAIZ_PROJETO / "data" / "raw" / "telco_customer_churn.csv"
 
 
 def carregar_brutos(caminho: Path | str | None = None) -> pd.DataFrame:
@@ -173,8 +187,48 @@ def tratar(df: pd.DataFrame) -> pd.DataFrame:
     return tratado
 
 
+def validar_tratado(df: pd.DataFrame) -> None:
+    """Confere que o DataFrame tratado cumpre o contrato que `features.py` assume.
+
+    `features.py` monta o pré-processador declarando que tudo fora das numéricas,
+    das categóricas e do alvo é 0/1, e manda esse resto por `passthrough`. Quem
+    torna isso verdade é `tratar` — ou seja, é uma correspondência entre dois
+    módulos que nada verificava.
+
+    O caso que essa checagem pega: alguém acrescenta uma coluna ao `SCHEMA_BRUTO`
+    (o passo natural depois que a validação do bruto acusa "coluna inesperada").
+    Se for texto, o `fit` estoura alto e o erro aparece. Mas se for numérica
+    contínua — uma latitude, um valor de reembolso —, ela entra no `passthrough`
+    sem escala, ao lado de features escaladas, e degrada o modelo linear em
+    silêncio. Silêncio é o que não pode acontecer.
+    """
+    problemas: list[str] = []
+
+    for col in COLUNAS_BINARIAS_MODELO:
+        if col not in df.columns:
+            problemas.append(f"{col}: ausente depois de tratar")
+            continue
+        valores = set(df[col].dropna().unique())
+        if not valores <= {0, 1}:
+            # Uma coluna contínua intrusa tem milhares de valores distintos:
+            # mostrar uma amostra, ou a mensagem de erro vira um despejo ilegível.
+            amostra = sorted(valores - {0, 1}, key=str)[:5]
+            resumo = ", ".join(str(v) for v in amostra)
+            if len(valores) > len(amostra):
+                resumo += f", ... ({len(valores)} valores distintos)"
+            problemas.append(f"{col}: deveria ser 0/1 depois de tratar, veio {resumo}")
+
+    if problemas:
+        raise ErroDeSchema(
+            "O dado tratado não cumpre o contrato esperado por features.py:\n  - "
+            + "\n  - ".join(problemas)
+        )
+
+
 def carregar_tratado(caminho: Path | str | None = None) -> pd.DataFrame:
     """Carrega, valida e trata. É o ponto de entrada do resto do pacote."""
     brutos = carregar_brutos(caminho)
     validar_schema(brutos)
-    return tratar(brutos)
+    tratado = tratar(brutos)
+    validar_tratado(tratado)
+    return tratado
