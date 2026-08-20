@@ -23,7 +23,7 @@ Os cinco achados completos estão em [`01_eda_telco.ipynb`](notebooks/01_eda_tel
 
 ## Modelagem
 
-Sete modelos comparados por validação cruzada 5×3 sobre o treino, com o conjunto de teste medido uma única vez no fim. Detalhes em [`02_modelagem.ipynb`](notebooks/02_modelagem.ipynb).
+Sete modelos comparados por validação cruzada 5×3 sobre o treino, com o conjunto de teste medido uma única vez no fim. A narrativa está em [`02_modelagem.ipynb`](notebooks/02_modelagem.ipynb); o registro de **todas** as decisões, com a razão de cada uma, em [Procedimentos e decisões da fase de modelagem](docs/procedimentos-e-decisoes-da-fase-de-modelagem.md).
 
 ![Comparação de modelos](reports/figures/comparacao_metricas.png)
 
@@ -96,6 +96,7 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 | `notebooks/01_eda_telco.ipynb` | Análise exploratória: tratamento dos dados justificado passo a passo, taxa base, análise univariada, checagem de categorias raras, churn por categoria contra a base, relação com as numéricas e a refutação da hipótese de preço da fibra. |
 | `src/telco_churn/treinar.py` | Ponto de entrada: um comando treina do zero e salva o artefato. Lê o campeão de `comparacao.json` em vez de trazê-lo escrito no código. |
 | `notebooks/02_modelagem.ipynb` | A narrativa da modelagem. Lê os artefatos gravados em vez de retreinar, para que texto e números não possam divergir. |
+| `docs/procedimentos-e-decisoes-da-fase-de-modelagem.md` | Todas as decisões da modelagem com a razão de cada uma, as alternativas descartadas e o que **não** foi feito. É onde se defende a escolha, não onde se mostra o número. |
 | `models/comparacao.json`, `reports/figures/*.png` | Saída da comparação: tabelas, lift por modelo e as sete figuras. Versionados para o README não exibir gráfico quebrado. |
 | `src/telco_churn/dados.py` | Carregar, validar o schema e aplicar o tratamento que no notebook está espalhado pelas células. Falha alto se uma coluna esperada sumir, e confere o contrato que `features.py` assume. |
 | `src/telco_churn/features.py` | O `ColumnTransformer`: codificação de categóricas e escala, ajustados **só** no conjunto de treino. |
