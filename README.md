@@ -2,7 +2,7 @@
 
 Previsão de cancelamento (churn) de clientes de telecomunicações, com uma camada de decisão que traduz probabilidade em recomendação de campanha, e um dashboard público.
 
-> ⚠️ **Projeto em construção.** Hoje o repositório tem a análise exploratória, o pacote de treino e a comparação de modelos. A camada de decisão e o dashboard entram nas fases seguintes — o roteiro está em [Estado do projeto](#estado-do-projeto). Este README será reescrito quando o dashboard estiver no ar.
+> ⚠️ **Projeto em construção.** Hoje o repositório tem a análise exploratória, o pacote de treino, a comparação de modelos e a camada de decisão. O dashboard entra na fase seguinte — o roteiro está em [Estado do projeto](#estado-do-projeto). Este README será reescrito quando o dashboard estiver no ar.
 
 ## O problema
 
@@ -59,6 +59,61 @@ O **AdaBoost é o contraexemplo útil do projeto**: ROC-AUC competitivo (0,847) 
 
 No primeiro decil de risco o lift é **2,89**. Contatando os dois primeiros decis — **282 clientes, 20% da base** — a campanha alcança **51% de todos os cancelamentos**; a regra de contrato, no mesmo orçamento, alcança 30%.
 
+## Camada de decisão
+
+Um ROC-AUC não diz quantas pessoas contatar. Esta camada troca o critério do limiar: em vez de F1 ou do ponto de Youden, ele sai de **valor esperado**. Narrativa em [`03_decisao.ipynb`](notebooks/03_decisao.ipynb).
+
+![Curva de orçamento](reports/figures/curva_orcamento.png)
+
+> **Contatando os 313 clientes de maior valor esperado (22% da base), a campanha rende R$ 7.223 de lucro esperado — contra R$ −1.034 da regra de contrato no mesmo orçamento.**
+
+Para um cliente com probabilidade `p` e mensalidade `mc`:
+
+```
+VE = taxa_aceite · mc · horizonte · (p · margem − desconto) − custo_contato
+```
+
+O terceiro termo é o que a formulação usual omite, e é o mais importante: **o desconto é pago a todo mundo que aceita**, inclusive a quem ia ficar. É o custo real de qualquer campanha de retenção. `MonthlyCharges` entra como margem de contribuição, não receita cheia — contar a mensalidade inteira superestimaria o ganho em mais de 3x.
+
+### O desenho da oferta importa mais que o modelo
+
+Isolando `p`, o limiar de contato é `desconto/margem + custo_contato/(a · margem · mc · H)`. O primeiro termo é um **piso que nenhuma qualidade de modelo vence** — não depende do cliente, do horizonte nem do AUC:
+
+| Desconto | Piso do limiar | Contatáveis (de 1.409) | Lucro esperado |
+|---|---|---|---|
+| 2% | 0,07 | 597 | R$ 21.301 |
+| 5% | 0,17 | 487 | R$ 15.044 |
+| **10%** (padrão) | **0,33** | **313** | **R$ 7.223** |
+| 15% | 0,50 | 154 | R$ 2.629 |
+| 20% | 0,67 | 58 | R$ 491 |
+| 25% | 0,83 | **0** | **R$ 0** |
+
+Entre 2% e 10% de desconto o lucro cai de R$ 21 mil para R$ 7 mil — o resultado é muito mais sensível ao desenho da oferta do que a qualquer ganho de modelagem. E a campanha morre em 25%, **antes** do limite teórico de 30%: basta o piso passar da maior probabilidade que o modelo produz.
+
+### Não existe um limiar — existe um por cliente
+
+![Limiar por cliente](reports/figures/limiar_por_cliente.png)
+
+O corte vai de **0,90** para um cliente de R$ 20 a **0,42** para um de R$ 118: cliente caro compensa ser abordado com menos certeza. Por isso **ordenar por valor esperado não é ordenar por probabilidade** — 27 dos 313 clientes (9% da campanha) trocam de lista.
+
+### O que cada camada acrescenta
+
+As quatro filas usam a mesma conta; muda só a ordem de contato.
+
+| Fila | Lucro no orçamento ótimo |
+|---|---|
+| Valor esperado | **R$ 7.223** |
+| Probabilidade de churn | R$ 7.017 |
+| Regra de contrato | R$ −1.034 |
+| Aleatória | R$ −5.453 |
+
+A regra de contrato é **negativa**: ela identifica o segmento certo, mas não ordena dentro dele, e o desconto pago a quem não ia cancelar come o ganho. O salto grande é da regra para o modelo; do modelo para o valor esperado é ajuste fino (+R$ 205, ~2,9%). O que a camada de decisão acrescenta de fato não é ordenação melhor — é **saber onde parar** e **saber se a campanha deveria existir**.
+
+### A limitação que não dá para contornar aqui
+
+O modelo prevê `P(churn)`, não o efeito **incremental** de contatar. Uma campanha correta é dirigida por uplift — quem muda de comportamento por ter sido abordado —, e medir isso exige grupo de controle aleatorizado, que esta base não tem. Somado ao efeito *sleeping dog* (clientes que cancelam por terem sido lembrados), isso significa que o resultado acima **dimensiona um piloto; não autoriza uma campanha**.
+
+
 ## Dados
 
 [Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) — distribuído no Kaggle por *blastchar*, originalmente um conjunto de amostra da IBM. 7.043 clientes, 21 colunas, rótulo `Churn` já pronto.
@@ -85,6 +140,12 @@ uv run python -m telco_churn.treinar
 uv run python -m telco_churn.comparacao
 ```
 
+Para recalcular a campanha com outras premissas de negócio:
+
+```bash
+uv run python -m telco_churn.decisao --desconto 0.05 --taxa-aceite 0.3
+```
+
 Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters precisam do OpenMP: `brew install libomp`. O `uv sync` lê o `uv.lock` e reproduz exatamente as mesmas versões de biblioteca usadas aqui.
 
 ## O que é cada arquivo
@@ -97,7 +158,9 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 | `src/telco_churn/treinar.py` | Ponto de entrada: um comando treina do zero e salva o artefato. Lê o campeão de `comparacao.json` em vez de trazê-lo escrito no código. |
 | `notebooks/02_modelagem.ipynb` | A narrativa da modelagem. Lê os artefatos gravados em vez de retreinar, para que texto e números não possam divergir. |
 | `docs/procedimentos-e-decisoes-da-fase-de-modelagem.md` | Todas as decisões da modelagem com a razão de cada uma, as alternativas descartadas e o que **não** foi feito. É onde se defende a escolha, não onde se mostra o número. |
-| `models/comparacao.json`, `reports/figures/*.png` | Saída da comparação: tabelas, lift por modelo e as sete figuras. Versionados para o README não exibir gráfico quebrado. |
+| `src/telco_churn/decisao.py` | A camada de valor esperado: `ParametrosNegocio`, limiar por cliente, simulação de campanha, ponto ótimo e sensibilidade. |
+| `notebooks/03_decisao.ipynb` | A narrativa da decisão: por que F1 não serve, o piso do desconto, o limiar por cliente e as limitações de uplift. |
+| `models/comparacao.json`, `models/decisao.json`, `reports/figures/*.png` | Saída da comparação e da decisão: tabelas, curvas, sensibilidade e as onze figuras. Versionados para o README não exibir gráfico quebrado. |
 | `src/telco_churn/dados.py` | Carregar, validar o schema e aplicar o tratamento que no notebook está espalhado pelas células. Falha alto se uma coluna esperada sumir, e confere o contrato que `features.py` assume. |
 | `src/telco_churn/features.py` | O `ColumnTransformer`: codificação de categóricas e escala, ajustados **só** no conjunto de treino. |
 | `src/telco_churn/modelo.py` | Split, montagem do `Pipeline`, avaliação (ROC-AUC, PR-AUC, Brier), validação cruzada repetida, curva de calibração, lift por decil, e o baseline `RegraContrato`. |
@@ -119,7 +182,6 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 
 | Caminho | Para que vai servir |
 |---|---|
-| `src/telco_churn/decisao.py` | A camada de valor esperado: limiar ótimo por custo, curva orçamento × lucro, análise de sensibilidade. |
 | `app/streamlit_app.py` | O dashboard: segmentos de risco, simulador individual e simulação de campanha. |
 | `tests/` | pytest para o que quebra em silêncio: validação de schema, ausência de vazamento no pipeline, corretude do limiar. |
 | `.github/workflows/ci.yml` | Roda ruff e pytest a cada push. |
@@ -131,7 +193,7 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 - [x] **Fase 1** — EDA fechada, com os cinco achados
 - [x] **Fase 2** — Do notebook ao pacote `src/`
 - [x] **Fase 3** — Modelagem: escada de sete modelos, ablação e calibração
-- [ ] **Fase 4** — Camada de decisão por valor esperado
+- [x] **Fase 4** — Camada de decisão por valor esperado
 - [ ] **Fase 5** — Dashboard Streamlit
 - [ ] **Fase 6** — Testes e integração contínua
 - [ ] **Fase 7** — README final e deploy público

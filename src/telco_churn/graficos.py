@@ -491,3 +491,276 @@ def efeito_class_weight(calibracoes: dict[str, pd.DataFrame], metricas: pd.DataF
         )
         fig.tight_layout()
     return fig
+
+
+# --------------------------------------------------------------------------
+# Fase 4 — camada de decisão
+# --------------------------------------------------------------------------
+
+
+def limiar_por_cliente(
+    p: np.ndarray,
+    mensalidade: np.ndarray,
+    limiares: np.ndarray,
+    selecionados: np.ndarray,
+    piso: float,
+) -> Figure:
+    """Mostra, de uma vez, que o corte não é uma linha horizontal.
+
+    Cada ponto é um cliente. A curva é o limiar de contato, que cai com a
+    mensalidade — cliente caro compensa ser abordado com menos certeza de que
+    vai sair. A linha tracejada é o piso `desconto/margem`, que nenhum aumento
+    de mensalidade vence.
+    """
+    ordem = np.argsort(mensalidade)
+
+    with _estilo():
+        fig, ax = plt.subplots(figsize=(9, 6))
+
+        ax.scatter(
+            mensalidade[~selecionados],
+            p[~selecionados],
+            s=12,
+            color=CINZA_FUNDO,
+            alpha=0.6,
+            linewidth=0,
+            label=f"Não contatar ({(~selecionados).sum()})",
+        )
+        ax.scatter(
+            mensalidade[selecionados],
+            p[selecionados],
+            s=18,
+            color=AZUL,
+            alpha=0.85,
+            linewidth=0,
+            label=f"Contatar ({selecionados.sum()})",
+        )
+        ax.plot(
+            mensalidade[ordem],
+            limiares[ordem],
+            color=LARANJA,
+            lw=2.4,
+            zorder=3,
+            label="Limiar de contato",
+        )
+        ax.axhline(
+            piso,
+            color=MUTADO,
+            lw=1.4,
+            ls=(0, (4, 3)),
+            zorder=2,
+            label=f"Piso = desconto/margem ({piso:.2f})",
+        )
+
+        ax.set_xlabel("Mensalidade (R$)")
+        ax.set_ylabel("Probabilidade de churn prevista")
+        ax.set_ylim(0, 1)
+        ax.set_title(
+            "Não existe um limiar — existe um por cliente\n"
+            "quanto maior a mensalidade, menos certeza o contato exige",
+            fontsize=11.5,
+            color=TINTA,
+            pad=10,
+        )
+        # Legenda fora do eixo: no canto superior direito ela cobria os
+        # clientes de maior risco, que são justamente os que interessam.
+        ax.legend(
+            loc="upper center", bbox_to_anchor=(0.5, -0.10), ncol=4, fontsize=9, frameon=False
+        )
+        _limpar(ax, "both")
+        fig.tight_layout()
+    return fig
+
+
+def curva_orcamento(curvas: dict[str, pd.DataFrame], otima: dict) -> Figure:
+    """Lucro esperado acumulado conforme se contata mais gente.
+
+    O gráfico principal da fase. A mesma conta de valor esperado nas quatro
+    linhas — o que muda é só a ordem da fila de contato, o que isola o ganho da
+    camada de decisão do ganho do modelo. Depois do pico, cada cliente a mais
+    destrói valor.
+    """
+    cores = {
+        "Valor esperado": AZUL,
+        "Probabilidade de churn": AGUA,
+        "Regra de contrato": MUTADO,
+        "Aleatória": CINZA_FUNDO,
+    }
+
+    with _estilo():
+        fig, ax = plt.subplots(figsize=(9.5, 6))
+        ax.axhline(0, color=GRADE, lw=1.5, zorder=0)
+
+        for nome, curva in curvas.items():
+            ax.plot(
+                curva["contatados"],
+                curva["lucro_acumulado"],
+                color=cores.get(nome, TINTA_SUAVE),
+                lw=2.4 if nome == "Valor esperado" else 1.8,
+                zorder=3 if nome == "Valor esperado" else 2,
+                label=nome,
+            )
+
+        n = otima["n_contatados"]
+        if n:
+            lucro = otima["lucro_esperado"]
+            ax.plot([n], [lucro], "o", ms=9, color=AZUL, mec=SUPERFICIE, mew=1.6, zorder=4)
+            ax.annotate(
+                f"ótimo: {n} clientes\nR$ {lucro:,.0f}".replace(",", "."),  # milhar BR
+                xy=(n, lucro),
+                xytext=(18, -34),
+                textcoords="offset points",
+                fontsize=9.5,
+                color=TINTA,
+                arrowprops={"arrowstyle": "-", "color": MUTADO, "lw": 1},
+            )
+            ax.axvspan(n, curvas["Valor esperado"]["contatados"].max(), color=GRADE, alpha=0.45,
+                       zorder=0)
+            ax.text(
+                n + (curvas["Valor esperado"]["contatados"].max() - n) / 2,
+                ax.get_ylim()[0] * 0.55 if ax.get_ylim()[0] < 0 else 0,
+                "contatar aqui\ndestrói valor",
+                ha="center",
+                fontsize=9,
+                color=MUTADO,
+                style="italic",
+            )
+
+        ax.set_xlabel("Clientes contatados, do primeiro da fila")
+        ax.set_ylabel("Lucro esperado acumulado (R$)")
+        ax.set_title(
+            "Quantos contatar — e por que a ordem da fila importa",
+            fontsize=12,
+            color=TINTA,
+            pad=10,
+        )
+        ax.legend(loc="lower left", fontsize=9, frameon=False)
+        _limpar(ax, "both")
+        fig.tight_layout()
+    return fig
+
+
+def sensibilidade_parametros(tabela: pd.DataFrame, params) -> Figure:
+    """Como o resultado ótimo se move quando cada suposição varia.
+
+    Um painel por parâmetro, os demais no padrão. Serve para separar as
+    premissas que o resultado tolera das que o dominam — e aqui o desconto
+    domina tudo.
+    """
+    rotulos = {
+        "margem": "Margem de contribuição",
+        "desconto": "Desconto ofertado",
+        "taxa_aceite": "Taxa de aceite",
+        "horizonte_meses": "Horizonte (meses)",
+        "custo_contato": "Custo de contato (R$)",
+    }
+    parametros = [c for c in rotulos if c in set(tabela["parametro"])]
+
+    with _estilo():
+        # sharey: com escalas independentes todo parâmetro parece igualmente
+        # íngreme, e a pergunta do gráfico é justamente qual deles domina.
+        fig, axes = plt.subplots(
+            1, len(parametros), figsize=(3.4 * len(parametros), 4.4), sharey=True
+        )
+        axes = np.atleast_1d(axes)
+
+        for ax, parametro in zip(axes, parametros, strict=True):
+            dados = tabela[tabela["parametro"] == parametro].sort_values("valor")
+            ax.plot(dados["valor"], dados["lucro_esperado"], color=AZUL, lw=2, marker="o", ms=5,
+                    mec=SUPERFICIE, mew=1.2)
+
+            padrao = dados[dados["e_o_padrao"]]
+            if not padrao.empty:
+                ax.plot(
+                    padrao["valor"],
+                    padrao["lucro_esperado"],
+                    "o",
+                    ms=11,
+                    mfc="none",
+                    mec=LARANJA,
+                    mew=2,
+                    zorder=4,
+                )
+
+            ax.set_title(rotulos[parametro], fontsize=10.5, color=TINTA, pad=8)
+            ax.set_xlabel("")
+            ax.set_ylim(bottom=0)
+            _limpar(ax, "y")
+
+        axes[0].set_ylabel("Lucro esperado ótimo (R$)")
+        fig.suptitle(
+            "Sensibilidade às suposições de negócio  ·  círculo laranja = valor padrão",
+            fontsize=12.5,
+            y=1.03,
+            color=TINTA,
+        )
+        fig.tight_layout()
+    return fig
+
+
+def piso_do_desconto(tabela: pd.DataFrame, params) -> Figure:
+    """Onde a campanha morre — e por que não é culpa do modelo.
+
+    O limiar de contato tem um piso igual a `desconto/margem`. Quando ele chega
+    a 1,0, nenhum cliente pode justificar contato, por melhor que o modelo seja.
+    É um resultado sobre o desenho da oferta.
+    """
+    dados = tabela[tabela["parametro"] == "desconto"].sort_values("valor")
+    desconto_letal = params.margem
+    # Onde a campanha morre de fato, que vem antes do limite teórico: basta o
+    # piso passar do maior p que o modelo produz para não sobrar ninguém.
+    mortos = dados[dados["n_contatados"] == 0]
+    desconto_morte = float(mortos["valor"].min()) if not mortos.empty else None
+
+    with _estilo():
+        fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.2))
+
+        axes[0].plot(dados["valor"], dados["lucro_esperado"], color=AZUL, lw=2.4, marker="o",
+                     ms=6, mec=SUPERFICIE, mew=1.4)
+        if desconto_morte is not None:
+            axes[0].axvline(desconto_morte, color=LARANJA, lw=1.6, ls=(0, (4, 3)), zorder=2)
+            axes[0].text(
+                desconto_morte,
+                axes[0].get_ylim()[1] * 0.62,
+                f"  lucro zera em {desconto_morte:.0%}\n  antes do limite teórico",
+                fontsize=9.5,
+                color=LARANJA,
+                va="center",
+            )
+        axes[0].axvline(desconto_letal, color=MUTADO, lw=1.4, ls=(0, (2, 3)), zorder=2)
+        axes[0].text(
+            desconto_letal,
+            axes[0].get_ylim()[1] * 0.30,
+            f"  desconto = margem\n  ({desconto_letal:.0%})",
+            fontsize=9,
+            color=MUTADO,
+            va="center",
+        )
+        axes[0].set_xlabel("Desconto ofertado (fração da mensalidade)")
+        axes[0].set_ylabel("Lucro esperado ótimo (R$)")
+        axes[0].set_title("O lucro cai muito antes de o desconto ficar caro",
+                          fontsize=11, color=TINTA, pad=8)
+        axes[0].set_ylim(bottom=0)
+        _limpar(axes[0], "y")
+
+        axes[1].plot(dados["valor"], dados["piso_do_limiar"], color=LARANJA, lw=2.4, marker="o",
+                     ms=6, mec=SUPERFICIE, mew=1.4, label="Piso do limiar")
+        axes[1].axhline(1.0, color=MUTADO, lw=1.4, ls=(0, (4, 3)),
+                        label="Probabilidade máxima possível")
+        axes[1].fill_between(dados["valor"], 1.0, dados["piso_do_limiar"],
+                             where=dados["piso_do_limiar"] >= 1.0, color=GRADE, alpha=0.7)
+        axes[1].set_xlabel("Desconto ofertado (fração da mensalidade)")
+        axes[1].set_ylabel("Limiar mínimo de churn exigido")
+        axes[1].set_title("Acima de 1,0 nenhum cliente é elegível — nem com modelo perfeito",
+                          fontsize=11, color=TINTA, pad=8)
+        axes[1].legend(fontsize=9, frameon=False, loc="lower right")
+        _limpar(axes[1], "y")
+
+        fig.suptitle(
+            "O piso do desconto: um limite que o modelo não consegue vencer",
+            fontsize=12.5,
+            y=1.01,
+            color=TINTA,
+        )
+        fig.tight_layout()
+    return fig

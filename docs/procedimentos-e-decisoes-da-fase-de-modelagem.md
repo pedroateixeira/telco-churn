@@ -279,7 +279,7 @@ A primeira versão usava barras e estava errada: com linha de base no zero, todo
 | **Feature engineering além da EDA** | A base tem 19 features para 7.043 linhas. Criar variáveis derivadas sem hipótese vinda dos dados é caminho curto para sobreajuste. |
 | **Split temporal** | Impossível: não há coluna de data (§2.1). |
 | **Seleção de features automática** | A única remoção candidata veio de um argumento da EDA e foi testada explicitamente (§7). Seleção automática num dado pequeno tende a escolher ruído. |
-| **Threshold de decisão** | É a Fase 4, e por escolha: o limiar sai de valor esperado — custo da oferta contra receita preservada —, não de F1 ou do ponto de Youden. Escolher agora por métrica estatística seria decidir o problema errado. |
+| **Threshold de decisão** | Ficou para a Fase 4, e por escolha: o limiar sai de valor esperado — custo da oferta contra margem preservada —, não de F1 ou do ponto de Youden. Escolher por métrica estatística seria decidir o problema errado. **Já entregue**: ver [`03_decisao.ipynb`](../notebooks/03_decisao.ipynb). O resultado justifica a espera — o limiar não é um número, é uma função da mensalidade de cada cliente, e tem um piso igual a `desconto/margem` que nenhuma qualidade de modelo vence. |
 
 ---
 
