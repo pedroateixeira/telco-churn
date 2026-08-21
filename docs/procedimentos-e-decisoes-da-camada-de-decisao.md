@@ -1,6 +1,6 @@
 # Procedimentos e decisões da camada de decisão
 
-Registro de **todas** as decisões tomadas na fase que traduz probabilidade de churn em lista de campanha, com a razão de cada uma. Documento irmão de [Procedimentos e decisões da fase de modelagem](procedimentos-e-decisoes-da-fase-de-modelagem.md), e mesma intenção: nesta fase quase nada é imposto pelos dados — quase tudo é escolha —, e escolha sem razão registrada é opinião disfarçada de resultado.
+Registro de **todas** as decisões tomadas na fase que traduz probabilidade de churn em lista de campanha, com a razão de cada uma. Documento irmão de [Procedimentos e decisões da fase de modelagem](procedimentos-e-decisoes-da-fase-de-modelagem.md), e mesma intenção: nesta fase quase nada é imposto pelos dados, quase tudo é escolha, e escolha sem razão registrada é opinião disfarçada de resultado.
 
 Complementa, sem repetir: a narrativa está em [`03_decisao.ipynb`](../notebooks/03_decisao.ipynb), o resumo no [README](../README.md), e o código em [`src/telco_churn/decisao.py`](../src/telco_churn/decisao.py).
 
@@ -18,10 +18,10 @@ A escolha convencional de limiar tem três candidatos usuais. Nenhum serve aqui,
 | Critério | Por que foi descartado |
 |---|---|
 | **F1** | Maximiza a média harmônica de precisão e recall. Trata falso positivo e falso negativo como se custassem o mesmo, e neste problema eles diferem em ordem de grandeza: um falso negativo é um cliente perdido (margem × horizonte); um falso positivo é uma ligação mais um desconto. |
-| **Ponto de Youden** (`max(TPR − FPR)`) | Mesma cegueira, com peso implícito ainda mais arbitrário — assume que uma unidade de sensibilidade vale exatamente uma de especificidade. |
+| **Ponto de Youden** (`max(TPR − FPR)`) | Mesma cegueira, com peso implícito ainda mais arbitrário, assumindo que uma unidade de sensibilidade vale exatamente uma de especificidade. |
 | **Joelho da curva ROC** | É um critério *visual*. O ponto de maior curvatura não corresponde a nada no negócio. |
 
-O problema comum aos três: **otimizam a forma da matriz de confusão, não o resultado da operação**. Nenhum deles pergunta quanto custa a oferta nem quanto vale o cliente — e são exatamente esses dois números que determinam a resposta.
+O problema comum aos três: **otimizam a forma da matriz de confusão, não o resultado da operação**. Nenhum deles pergunta quanto custa a oferta nem quanto vale o cliente e são exatamente esses dois números que determinam a resposta.
 
 Há um sintoma que denuncia isso de imediato: os três produzem **um** limiar, igual para todo mundo. A seção 4 mostra que o limiar correto é diferente para cada cliente.
 
@@ -64,7 +64,7 @@ VE = a · mc · H · (p · margem − desconto) − custo_contato
 VE = p × a × margem × H − custo_da_oferta        ← errada
 ```
 
-Ela trata o desconto como se fosse pago apenas por clientes retidos. Não é. A oferta é feita antes de saber quem ia sair, e **todo mundo que aceita recebe o desconto** — inclusive os ~73% que ficariam de qualquer forma. Esse é o custo real de qualquer campanha de retenção; omiti-lo infla o resultado e, pior, esconde o achado da seção 3.
+Ela trata o desconto como se fosse pago apenas por clientes retidos. Não é. A oferta é feita antes de saber quem ia sair, e **todo mundo que aceita recebe o desconto**, inclusive os ~73% que ficariam de qualquer forma. Esse é o custo real de qualquer campanha de retenção; omiti-lo infla o resultado e, pior, esconde o achado da seção 3.
 
 ### 2.3. `MonthlyCharges` como margem, não receita
 
@@ -121,7 +121,7 @@ O primeiro termo **não depende do cliente, do horizonte, da taxa de aceite nem 
 
 Duas leituras:
 
-**1. O desenho da oferta domina o modelo.** Entre 2% e 10% de desconto o lucro cai de R$ 21 mil para R$ 7 mil. Nenhum ganho de modelagem plausível na Fase 3 — onde os candidatos se distinguiam por ~0,010 de PR-AUC — chegaria perto desse efeito. Um projeto que para no AUC nunca descobre isso.
+**1. O desenho da oferta domina o modelo.** Entre 2% e 10% de desconto o lucro cai de R$ 21 mil para R$ 7 mil. Nenhum ganho de modelagem plausível na Fase 3 — onde os candidatos se distinguiam por ~0,010 de PR-AUC — chegaria perto desse efeito. 
 
 **2. Com desconto igual à margem, a campanha é impossível.** O piso vai a 1,0 e nenhum cliente pode justificar contato, por melhor que seja o modelo. Um ROC-AUC de 0,99 não salvaria — o problema não está em prever, está no desenho da oferta. Cada real de desconto concedido precisa ser recuperado em margem de quem seria perdido; se o desconto consome a margem inteira, não sobra o que recuperar.
 
@@ -164,15 +164,15 @@ Isto é o que os critérios da §1.1 não conseguem representar: eles produzem u
 | Regra de contrato | **R$ −1.034** | O que dá para fazer sem modelo |
 | Aleatória | R$ −5.453 | O piso: contatar sem informação |
 
-**Por que a regra de contrato dá lucro negativo.** Ela acerta o segmento — mês a mês tem 42,7% de churn — mas **não ordena dentro dele**. Contatar todos os clientes mês a mês inclui gente demais que não ia cancelar, e o desconto pago a eles come o ganho. Uma regra de uma linha identifica risco; a campanha precisa de ordenação, e é isso que ela não tem. A implementação preserva essa limitação de propósito: a fila da regra usa `kind="stable"`, sem desempate por `p`, porque dar a ela um critério de ordenação que ela não possui seria inflar artificialmente o baseline.
+**Por que a regra de contrato dá lucro negativo.** Ela acerta o segmento: mês a mês tem 42,7% de churn, mas **não ordena dentro dele**. Contatar todos os clientes mês a mês inclui gente demais que não ia cancelar, e o desconto pago a eles come o ganho. Uma regra de uma linha identifica risco; a campanha precisa de ordenação, e é isso que ela não tem. A implementação preserva essa limitação de propósito: a fila da regra usa `kind="stable"`, sem desempate por `p`, porque dar a ela um critério de ordenação que ela não possui seria inflar artificialmente o baseline.
 
 **A honestidade desconfortável.** O ganho da camada de decisão sobre a ordenação por probabilidade pura é de **R$ 205, ~2,9%**. As duas curvas quase se sobrepõem no gráfico. O salto grande é da regra para o modelo; do modelo para o valor esperado é ajuste fino.
 
-Isso está escrito no notebook, no README e aqui, em vez de omitido — porque o valor da camada não está na magnitude desse delta. Está nos dois itens da §1.2: saber **onde parar** e saber **se a campanha deveria existir**. Nenhum dos dois aparece numa comparação de lucro a orçamento fixo.
+Isso está escrito no notebook, no README e aqui, em vez de omitido, porque o valor da camada não está na magnitude desse delta. Está nos dois itens da §1.2: saber **onde parar** e saber **se a campanha deveria existir**. Nenhum dos dois aparece numa comparação de lucro a orçamento fixo.
 
 ### 5.1. Por que o ponto ótimo não precisa de otimização
 
-`campanha_otima` seleciona todo cliente com `VE > 0` e mais nenhum. Como a fila está ordenada por VE decrescente, esse conjunto **é** o máximo global — não há o que buscar. É por isso que a verificação compara o resultado com uma varredura em força bruta: para provar que a forma fechada não escondeu um erro.
+`campanha_otima` seleciona todo cliente com `VE > 0` e mais nenhum. Como a fila está ordenada por VE decrescente, esse conjunto é o máximo global e não há o que buscar. É por isso que a verificação compara o resultado com uma varredura em força bruta: para provar que a forma fechada não escondeu um erro.
 
 ---
 
@@ -180,7 +180,7 @@ Isso está escrito no notebook, no README e aqui, em vez de omitido — porque o
 
 ### 6.1. Um parâmetro por vez, e por que isso basta aqui
 
-A varredura é univariada: cada parâmetro varia com os outros quatro no padrão. Não é análise de interação, e isso é uma limitação real — mas o objetivo aqui é responder **quais premissas dominam**, e para isso a varredura univariada é suficiente e legível. Uma superfície de cinco dimensões seria mais correta e ilegível.
+A varredura é univariada: cada parâmetro varia com os outros quatro no padrão. Não é análise de interação, e isso é uma limitação real, mas o objetivo aqui é responder **quais premissas dominam**, e para isso a varredura univariada é suficiente e legível. Uma superfície de cinco dimensões seria mais correta e ilegível.
 
 ### 6.2. O que domina
 
@@ -200,7 +200,7 @@ A leitura tem de separar o que se **controla** do que se **herda**:
 
 ### 6.3. Eixo compartilhado nos painéis
 
-Os cinco painéis compartilham o eixo vertical. Com escalas independentes, todo parâmetro pareceria igualmente íngreme — e a pergunta do gráfico é justamente qual deles domina. Escala livre aqui não seria neutra: seria enganosa.
+Os cinco painéis compartilham o eixo vertical. Com escalas independentes, todo parâmetro pareceria igualmente íngreme e a pergunta do gráfico é justamente qual deles domina. Escala livre aqui não seria neutra: seria enganosa.
 
 ---
 
@@ -228,10 +228,10 @@ Os cinco painéis compartilham o eixo vertical. Com escalas independentes, todo 
 | Não feito | Razão |
 |---|---|
 | **Modelo de uplift** | É o que a fase deveria usar (§9.1), e é impossível: exige grupo de controle aleatorizado, que esta base não tem. |
-| **Otimizar o desenho da oferta** | A §3 mostra que o desconto domina o resultado, o que sugere resolver para o desconto ótimo. Não foi feito porque a taxa de aceite quase certamente **depende** do desconto — oferta maior é mais aceita —, e essa relação não é observável aqui. Otimizar com `taxa_aceite` fixa daria a resposta absurda "ofereça o menor desconto possível". |
+| **Otimizar o desenho da oferta** | A §3 mostra que o desconto domina o resultado, o que sugere resolver para o desconto ótimo. Não foi feito porque a taxa de aceite quase certamente **depende** do desconto, e oferta maior é mais aceita, e essa relação não é observável aqui. Otimizar com `taxa_aceite` fixa daria a resposta absurda "ofereça o menor desconto possível". |
 | **Ofertas diferenciadas por segmento** | Mesma razão: sem dado de aceite por segmento, seria inventar estrutura. |
 | **Restrição de capacidade** | A curva de orçamento já responde a qualquer corte de budget; formalizar como problema de otimização com restrição não acrescentaria nada, já que a solução continua sendo "ordene por VE e corte". |
-| **Valor de vida do cliente (LTV)** | Substituiria o horizonte fixo por um modelo de sobrevivência. Mais correto e fora de escopo — e `tenure` truncado em 72 (censura à direita, ver EDA) complicaria a estimativa. |
+| **Valor de vida do cliente (LTV)** | Substituiria o horizonte fixo por um modelo de sobrevivência. Mais correto e fora de escopo e `tenure` truncado em 72 (censura à direita, ver EDA) complicaria a estimativa. |
 | **Intervalo de confiança sobre o lucro** | O lucro herda incerteza de `p` **e** dos cinco parâmetros. A segunda domina de longe a primeira, e propagá-la daria um intervalo tão largo que a sensibilidade da §6 comunica melhor. |
 
 ---
@@ -262,7 +262,7 @@ Parte dos clientes cancela **porque** foi lembrada de que podia. O efeito é con
 
 Somadas, elas determinam o que este resultado **é** e o que ele **não é**.
 
-Ele **não** é um número para levar ao comitê de orçamento. Ele **é** o dimensionamento de um piloto: quantos clientes, quais, com que oferta, e qual retorno esperar se as premissas se confirmarem. O passo seguinte correto é um teste com grupo de controle aleatorizado que meça aceite real e churn incremental nos dois braços — e substitua três dos cinco palpites por medida.
+Ele **não** é um número para levar ao comitê de orçamento. Ele **é** o dimensionamento de um piloto: quantos clientes, quais, com que oferta, e qual retorno esperar se as premissas se confirmarem. O passo seguinte correto é um teste com grupo de controle aleatorizado que meça aceite real e churn incremental nos dois braços e substitua três dos cinco palpites por medida.
 
 ---
 
@@ -270,7 +270,7 @@ Ele **não** é um número para levar ao comitê de orçamento. Ele **é** o dim
 
 **1. O desenho da oferta importa mais que o modelo.** O limiar tem um piso `desconto/margem` que nenhuma qualidade de modelo vence, e o lucro é muito mais sensível ao desconto do que a qualquer ganho de AUC plausível.
 
-**2. A campanha morre antes do limite teórico** — 25% de desconto, não 30% — porque o limite real depende da maior probabilidade que o modelo produz.
+**2. A campanha morre antes do limite teórico, em 25% de desconto e não 30%  porque o limite real depende da maior probabilidade que o modelo produz.
 
 **3. O limiar é uma função, não um número.** De 0,904 a 0,423 conforme a mensalidade, movendo ~9% da campanha em relação à ordenação por probabilidade.
 

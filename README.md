@@ -2,7 +2,7 @@
 
 Previsão de cancelamento (churn) de clientes de telecomunicações, com uma camada de decisão que traduz probabilidade em recomendação de campanha, e um dashboard público.
 
-> ⚠️ **Projeto em construção.** Hoje o repositório tem a análise exploratória, o pacote de treino, a comparação de modelos e a camada de decisão. O dashboard entra na fase seguinte — o roteiro está em [Estado do projeto](#estado-do-projeto). Este README será reescrito quando o dashboard estiver no ar.
+> ⚠️ **Projeto em construção.** Hoje o repositório contém a análise exploratória. O modelo, a camada de decisão e o dashboard entram nas fases seguintes — o roteiro completo está em [Estado do projeto](#estado-do-projeto). Este README será reescrito quando o dashboard estiver no ar.
 
 ## O problema
 
@@ -16,102 +16,9 @@ Já demonstrados no notebook, contra uma taxa base de **26,5%**:
 
 - **Contrato é o sinal dominante.** Mês a mês: 42,7% · Um ano: 11,3% · Dois anos: 2,8%.
 - **O churn se concentra no começo da vida do cliente.** Tenure mediano de 10 meses entre quem cancela, contra 38 entre quem fica.
-- **Fibra ótica cancela mais que DSL** (41,9% vs 19,0%) — e a explicação óbvia, preço, **não se sustenta**: dentro da fibra, quanto mais caro o plano, *menor* o churn (55,7% no quartil barato → 26,3% no caro). O que a mensalidade baixa marca é cliente novo, sem serviços adicionais e sem fidelidade. Controlando contrato e tempo de casa, ainda sobram **28 pontos** de diferença (70,2% vs 42,5%) que a base não explica — não há nenhuma coluna de qualidade de serviço, suporte ou concorrência. Fica como pergunta aberta, não como causa presumida.
-- **`TotalCharges` é redundante.** É reconstituível a partir de `tenure × MonthlyCharges` — a mediana do resíduo é exatamente 0,00. A ablação da fase de modelagem confirmou: remover a variável custa no máximo 0,0018 de ROC-AUC, menos de 0,15 desvio entre folds.
+- **Fibra ótica cancela mais que DSL** (41,9% vs 19,0%) — e a explicação óbvia, preço, **não se sustenta**: dentro da fibra, quanto mais caro o plano, *menor* o churn (55,7% no quartil barato → 26,3% no caro). O que a mensalidade baixa marca é cliente novo, sem serviços adicionais e sem fidelidade.
+- **`TotalCharges` é redundante.** É reconstituível a partir de `tenure × MonthlyCharges` — a mediana do resíduo é exatamente 0,00.
 
-Os cinco achados completos estão em [`01_eda_telco.ipynb`](notebooks/01_eda_telco.ipynb).
-
-## Modelagem
-
-Sete modelos comparados por validação cruzada 5×3 sobre o treino, com o conjunto de teste medido uma única vez no fim. A narrativa está em [`02_modelagem.ipynb`](notebooks/02_modelagem.ipynb); o registro de **todas** as decisões, com a razão de cada uma, em [Procedimentos e decisões da fase de modelagem](docs/procedimentos-e-decisoes-da-fase-de-modelagem.md).
-
-![Comparação de modelos](reports/figures/comparacao_metricas.png)
-
-**O modelo bate o baseline com folga, e os modelos aprendidos empatam entre si.** A regra de uma linha (`Contract == "Month-to-month"`) faz ROC-AUC 0,729 e PR-AUC 0,409; os seis modelos aprendidos ficam entre 0,841–0,851 e 0,657–0,672, com barras de erro que se sobrepõem quase inteiramente.
-
-**A comparação pareada é o que separa sinal de ruído.** A variação entre folds (±0,019 de PR-AUC) é o dobro da diferença entre modelos (~0,010), então comparar médias afoga tudo. Mas os folds são compartilhados — um fold difícil é difícil para todos —, e a diferença *dentro* de cada fold cancela essa variação comum. Aí o sinal aparece: os ensembles vencem a regressão logística em **15/15** e **14/15** folds. LightGBM e AdaBoost, ao contrário, não a superam.
-
-**Campeão: XGBoost**, por uma regra de desempate declarada em código — entre os modelos que empatam com o líder, fica o mais barato de treinar. O stacking lidera por 0,0005 de PR-AUC e custa **37× mais** por ajuste.
-
-| Modelo | ROC-AUC | PR-AUC | Brier | s/ajuste |
-|---|---|---|---|---|
-| Regra de contrato | 0,729 | 0,409 | 0,163 | 0,00 |
-| Regressão logística | 0,846 | 0,661 | 0,135 | 0,02 |
-| AdaBoost | 0,847 | 0,660 | **0,171** | 0,70 |
-| **XGBoost** (campeão) | 0,847 | 0,668 | 0,134 | 0,24 |
-| LightGBM | 0,841 | 0,657 | 0,137 | 0,61 |
-| Ensemble (votação) | 0,850 | 0,671 | 0,136 | 1,53 |
-| Ensemble (stacking) | 0,851 | 0,672 | 0,134 | 8,77 |
-
-*Validação cruzada 5×3 sobre o treino. No teste, o campeão faz ROC-AUC 0,845 · PR-AUC 0,664 · Brier 0,136.*
-
-### A armadilha da calibração
-
-![Efeito do balanceamento de classe](reports/figures/efeito_class_weight.png)
-
-Com 26,5% de positivos, o reflexo comum é `class_weight="balanced"`. Ele preserva o ranking e **destrói o nível da probabilidade**: a média prevista sobe de 0,268 para **0,416**, contra uma taxa base real de 0,265 — superestima o risco em mais de 50% —, e o Brier vai de 0,138 para 0,169.
-
-O ROC-AUC não denuncia nada disso (0,8424 → 0,8418). Um projeto que reportasse só AUC entregaria à camada de decisão um modelo que infla o valor esperado de toda campanha. Como o valor esperado usa o **valor absoluto** de `p_churn` e não o ranking, essa distinção não é acadêmica — e é por isso que o modelo de produção vai sem balanceamento.
-
-O **AdaBoost é o contraexemplo útil do projeto**: ROC-AUC competitivo (0,847) e o pior Brier da escada (0,171), pior que o de uma regra de uma linha. Ele ordena bem e mente sobre o nível.
-
-### O que a operação enxerga
-
-No primeiro decil de risco o lift é **2,89**. Contatando os dois primeiros decis — **282 clientes, 20% da base** — a campanha alcança **51% de todos os cancelamentos**; a regra de contrato, no mesmo orçamento, alcança 30%.
-
-## Camada de decisão
-
-Um ROC-AUC não diz quantas pessoas contatar. Esta camada troca o critério do limiar: em vez de F1 ou do ponto de Youden, ele sai de **valor esperado**. Narrativa em [`03_decisao.ipynb`](notebooks/03_decisao.ipynb).
-
-![Curva de orçamento](reports/figures/curva_orcamento.png)
-
-> **Contatando os 313 clientes de maior valor esperado (22% da base), a campanha rende R$ 7.223 de lucro esperado — contra R$ −1.034 da regra de contrato no mesmo orçamento.**
-
-Para um cliente com probabilidade `p` e mensalidade `mc`:
-
-```
-VE = taxa_aceite · mc · horizonte · (p · margem − desconto) − custo_contato
-```
-
-O terceiro termo é o que a formulação usual omite, e é o mais importante: **o desconto é pago a todo mundo que aceita**, inclusive a quem ia ficar. É o custo real de qualquer campanha de retenção. `MonthlyCharges` entra como margem de contribuição, não receita cheia — contar a mensalidade inteira superestimaria o ganho em mais de 3x.
-
-### O desenho da oferta importa mais que o modelo
-
-Isolando `p`, o limiar de contato é `desconto/margem + custo_contato/(a · margem · mc · H)`. O primeiro termo é um **piso que nenhuma qualidade de modelo vence** — não depende do cliente, do horizonte nem do AUC:
-
-| Desconto | Piso do limiar | Contatáveis (de 1.409) | Lucro esperado |
-|---|---|---|---|
-| 2% | 0,07 | 597 | R$ 21.301 |
-| 5% | 0,17 | 487 | R$ 15.044 |
-| **10%** (padrão) | **0,33** | **313** | **R$ 7.223** |
-| 15% | 0,50 | 154 | R$ 2.629 |
-| 20% | 0,67 | 58 | R$ 491 |
-| 25% | 0,83 | **0** | **R$ 0** |
-
-Entre 2% e 10% de desconto o lucro cai de R$ 21 mil para R$ 7 mil — o resultado é muito mais sensível ao desenho da oferta do que a qualquer ganho de modelagem. E a campanha morre em 25%, **antes** do limite teórico de 30%: basta o piso passar da maior probabilidade que o modelo produz.
-
-### Não existe um limiar — existe um por cliente
-
-![Limiar por cliente](reports/figures/limiar_por_cliente.png)
-
-O corte vai de **0,90** para um cliente de R$ 20 a **0,42** para um de R$ 118: cliente caro compensa ser abordado com menos certeza. Por isso **ordenar por valor esperado não é ordenar por probabilidade** — 27 dos 313 clientes (9% da campanha) trocam de lista.
-
-### O que cada camada acrescenta
-
-As quatro filas usam a mesma conta; muda só a ordem de contato.
-
-| Fila | Lucro no orçamento ótimo |
-|---|---|
-| Valor esperado | **R$ 7.223** |
-| Probabilidade de churn | R$ 7.017 |
-| Regra de contrato | R$ −1.034 |
-| Aleatória | R$ −5.453 |
-
-A regra de contrato é **negativa**: ela identifica o segmento certo, mas não ordena dentro dele, e o desconto pago a quem não ia cancelar come o ganho. O salto grande é da regra para o modelo; do modelo para o valor esperado é ajuste fino (+R$ 205, ~2,9%). O que a camada de decisão acrescenta de fato não é ordenação melhor — é **saber onde parar** e **saber se a campanha deveria existir**.
-
-### A limitação que não dá para contornar aqui
-
-O modelo prevê `P(churn)`, não o efeito **incremental** de contatar. Uma campanha correta é dirigida por uplift — quem muda de comportamento por ter sido abordado —, e medir isso exige grupo de controle aleatorizado, que esta base não tem. Somado ao efeito *sleeping dog* (clientes que cancelam por terem sido lembrados), isso significa que o resultado acima **dimensiona um piloto; não autoriza uma campanha**.
 
 
 ## Dados
@@ -130,23 +37,7 @@ git clone https://github.com/pedroateixeira/telco-churn.git
 cd telco-churn && uv sync && uv run jupyter lab
 ```
 
-Para treinar o modelo do zero, ou refazer a comparação e as figuras:
-
-```bash
-uv run python -m telco_churn.treinar
-```
-
-```bash
-uv run python -m telco_churn.comparacao
-```
-
-Para recalcular a campanha com outras premissas de negócio:
-
-```bash
-uv run python -m telco_churn.decisao --desconto 0.05 --taxa-aceite 0.3
-```
-
-Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters precisam do OpenMP: `brew install libomp`. O `uv sync` lê o `uv.lock` e reproduz exatamente as mesmas versões de biblioteca usadas aqui.
+Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. O `uv sync` lê o `uv.lock` e reproduz exatamente as mesmas versões de biblioteca usadas aqui.
 
 ## O que é cada arquivo
 
@@ -154,34 +45,28 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 
 | Caminho | Para que serve |
 |---|---|
-| `notebooks/01_eda_telco.ipynb` | Análise exploratória: tratamento dos dados justificado passo a passo, taxa base, análise univariada, checagem de categorias raras, churn por categoria contra a base, relação com as numéricas e a refutação da hipótese de preço da fibra. |
-| `src/telco_churn/treinar.py` | Ponto de entrada: um comando treina do zero e salva o artefato. Lê o campeão de `comparacao.json` em vez de trazê-lo escrito no código. |
-| `notebooks/02_modelagem.ipynb` | A narrativa da modelagem. Lê os artefatos gravados em vez de retreinar, para que texto e números não possam divergir. |
-| `docs/procedimentos-e-decisoes-da-fase-de-modelagem.md` | Todas as decisões da modelagem com a razão de cada uma, as alternativas descartadas e o que **não** foi feito. É onde se defende a escolha, não onde se mostra o número. |
-| `src/telco_churn/decisao.py` | A camada de valor esperado: `ParametrosNegocio`, limiar por cliente, simulação de campanha, ponto ótimo e sensibilidade. |
-| `notebooks/03_decisao.ipynb` | A narrativa da decisão: por que F1 não serve, o piso do desconto, o limiar por cliente e as limitações de uplift. |
-| `models/comparacao.json`, `models/decisao.json`, `reports/figures/*.png` | Saída da comparação e da decisão: tabelas, curvas, sensibilidade e as onze figuras. Versionados para o README não exibir gráfico quebrado. |
-| `src/telco_churn/dados.py` | Carregar, validar o schema e aplicar o tratamento que no notebook está espalhado pelas células. Falha alto se uma coluna esperada sumir, e confere o contrato que `features.py` assume. |
-| `src/telco_churn/features.py` | O `ColumnTransformer`: codificação de categóricas e escala, ajustados **só** no conjunto de treino. |
-| `src/telco_churn/modelo.py` | Split, montagem do `Pipeline`, avaliação (ROC-AUC, PR-AUC, Brier), validação cruzada repetida, curva de calibração, lift por decil, e o baseline `RegraContrato`. |
-| `src/telco_churn/catalogo.py` | Os sete modelos comparados, como *fábricas* — cada fold treina do zero, e reusar a mesma instância vazaria estado entre folds. |
-| `src/telco_churn/comparacao.py` | Roda a escada, a ablação e o experimento de calibração; grava `models/comparacao.json` e as figuras. É quem decide o campeão. |
-| `src/telco_churn/graficos.py` | As figuras de comparação. Recebem dados prontos e devolvem `Figure` — não treinam nem salvam, para poderem ser reusadas no dashboard. |
-
+| `notebooks/01_eda_telco.ipynb` | **O artefato principal por enquanto.** Análise exploratória completa: tratamento dos dados justificado passo a passo, taxa base, análise univariada, checagem de categorias raras, churn por categoria contra a base e relação com as variáveis numéricas. O prefixo `01_` é ordenação — o notebook de modelagem será o `02_`. |
 | `data/raw/telco_customer_churn.csv` | O dataset original, sem nenhuma alteração. Nada neste projeto escreve nesta pasta: dado bruto é imutável, e essa separação é o que garante que a análise seja refazível do zero. |
 | `data/processed/` | Destino dos dados já tratados, gerados pelo pipeline. Vazio no Git de propósito (ver `.gitignore`) — conteúdo derivado se regenera, não se versiona. |
-| `pyproject.toml` | Declara o projeto e suas dependências (pandas, scikit-learn, XGBoost, LightGBM, Streamlit) em faixas de versão, mais um grupo `dev` com pytest e ruff. Também guarda a configuração do ruff e do pytest, para não espalhar arquivo de config pela raiz. |
+| `pyproject.toml` | Declara o projeto e suas dependências (pandas, scikit-learn, LightGBM, Streamlit) em faixas de versão, mais um grupo `dev` com pytest e ruff. Também guarda a configuração do ruff e do pytest, para não espalhar arquivo de config pela raiz. |
 | `uv.lock` | Trava as versões **exatas** de todas as dependências, incluindo as transitivas. É a diferença entre "instalei as bibliotecas" e "outra pessoa consegue reproduzir o meu resultado". Versionado sempre. |
 | `.python-version` | Fixa o Python em 3.12. O `uv` lê este arquivo e baixa a versão certa sozinho se ela não existir na máquina. |
 | `.gitignore` | Mantém fora do Git o ambiente virtual, caches, checkpoints do Jupyter e dados derivados. Tem duas exceções deliberadas e comentadas no próprio arquivo: o CSV bruto e o `models/modelo.joblib` **são** versionados — o primeiro para o notebook rodar em máquina limpa, o segundo porque o Streamlit Cloud precisa do modelo dentro do repositório. |
 | `LICENSE` | MIT. Cobre o código deste repositório, não o dataset. |
-| `models/modelo.joblib`, `models/metricas.json` | O modelo de produção (XGBoost) e o relatório do treino — métricas, lift, ambiente que o produziu e as colunas de entrada. |
+| `models/` | Onde o modelo treinado será salvo. Vazio por enquanto. |
+| `reports/figures/` | Gráficos exportados para uso no README e no dashboard. Vazio por enquanto. |
 | `*/.gitkeep` | Arquivos vazios que existem por uma limitação do Git: ele não versiona diretório vazio. Sem eles, a estrutura de pastas não sobreviveria ao clone. |
 
 ### Entra nas próximas fases
 
 | Caminho | Para que vai servir |
 |---|---|
+| `src/telco_churn/dados.py` | Carregar, validar o schema e aplicar o tratamento que hoje está espalhado pelas células do notebook. Falha alto se uma coluna esperada sumir. |
+| `src/telco_churn/features.py` | O `ColumnTransformer`: codificação de categóricas e escala, ajustados **só** no conjunto de treino. |
+| `src/telco_churn/modelo.py` | Montagem do `Pipeline`, treino e avaliação (ROC-AUC, PR-AUC, lift por decil, calibração). |
+| `src/telco_churn/decisao.py` | A camada de valor esperado: limiar ótimo por custo, curva orçamento × lucro, análise de sensibilidade. |
+| `src/telco_churn/treinar.py` | Ponto de entrada: um comando treina do zero e salva o artefato. Notebook explora; script entrega. |
+| `notebooks/02_modelagem.ipynb` | A narrativa da modelagem — baseline, comparação de modelos, ablação de `TotalCharges`. |
 | `app/streamlit_app.py` | O dashboard: segmentos de risco, simulador individual e simulação de campanha. |
 | `tests/` | pytest para o que quebra em silêncio: validação de schema, ausência de vazamento no pipeline, corretude do limiar. |
 | `.github/workflows/ci.yml` | Roda ruff e pytest a cada push. |
@@ -190,15 +75,15 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. No macOS, os boosters pre
 ## Estado do projeto
 
 - [x] **Fase 0** — Repositório, ambiente reprodutível e licença
-- [x] **Fase 1** — EDA fechada, com os cinco achados
-- [x] **Fase 2** — Do notebook ao pacote `src/`
-- [x] **Fase 3** — Modelagem: escada de sete modelos, ablação e calibração
-- [x] **Fase 4** — Camada de decisão por valor esperado
+- [ ] **Fase 1** — Fechar a EDA: os cinco achados escritos
+- [ ] **Fase 2** — Do notebook ao pacote `src/`
+- [ ] **Fase 3** — Modelagem: baseline → regressão logística → LightGBM, com calibração
+- [ ] **Fase 4** — Camada de decisão por valor esperado
 - [ ] **Fase 5** — Dashboard Streamlit
 - [ ] **Fase 6** — Testes e integração contínua
 - [ ] **Fase 7** — README final e deploy público
 
 ## Decisões e limitações
 
-- **Sem split temporal.** O dataset não tem nenhuma coluna de data — `tenure` é duração, não data de entrada do cliente. Isso torna impossível separar treino e teste por safra, que seria o correto. A consequência: a performance medida é otimista em relação ao que se veria em produção. Fica declarado.
-- **Nem toda ferramenta cabe aqui.** 7.043 linhas não justificam Spark nem um data warehouse. Forçar ferramenta grande em dado pequeno é ruído de currículo, não engenharia — a escalada de ferramenta fica para o projeto seguinte, sobre uma base que realmente não cabe em memória.
+- **Sem split temporal.** O dataset não tem nenhuma coluna de data — `tenure` é duração, não data de entrada do cliente. Isso torna impossível separar treino e teste por safra, que seria o correto. A consequência: a performance medida é otimista em relação ao que se veria em produção. 
+
