@@ -232,3 +232,69 @@ def carregar_tratado(caminho: Path | str | None = None) -> pd.DataFrame:
     tratado = tratar(brutos)
     validar_tratado(tratado)
     return tratado
+
+# Cliente de partida do simulador do dashboard: valores medianos da base. Abrir
+# o formulário preenchido, em vez de vazio, evita que a primeira predição saia
+# de uma combinação que ninguém escolheu.
+CLIENTE_EXEMPLO: dict = {
+    "gender": 0,
+    "SeniorCitizen": 0,
+    "Partner": 0,
+    "Dependents": 0,
+    "tenure": 29,
+    "PhoneService": 1,
+    "MultipleLines": 0,
+    "InternetService": "Fiber optic",
+    "OnlineSecurity": 0,
+    "OnlineBackup": 0,
+    "DeviceProtection": 0,
+    "TechSupport": 0,
+    "StreamingTV": 0,
+    "StreamingMovies": 0,
+    "Contract": "Month-to-month",
+    "PaperlessBilling": 1,
+    "PaymentMethod": "Electronic check",
+    "MonthlyCharges": 70.35,
+    "TotalCharges": 1394.55,
+}
+
+# Rótulos em português para a interface. O dado vem em inglês do Kaggle e as
+# colunas mantêm o nome original — traduzir no schema quebraria a rastreabilidade
+# com a fonte, então a tradução fica só na camada de apresentação.
+ROTULOS_PT: dict[str, str] = {
+    "gender": "Gênero",
+    "SeniorCitizen": "Idoso (65+)",
+    "Partner": "Tem parceiro(a)",
+    "Dependents": "Tem dependentes",
+    "tenure": "Tempo de casa (meses)",
+    "PhoneService": "Serviço de telefone",
+    "MultipleLines": "Múltiplas linhas",
+    "InternetService": "Tipo de internet",
+    "OnlineSecurity": "Segurança online",
+    "OnlineBackup": "Backup online",
+    "DeviceProtection": "Proteção de aparelho",
+    "TechSupport": "Suporte técnico",
+    "StreamingTV": "Streaming de TV",
+    "StreamingMovies": "Streaming de filmes",
+    "Contract": "Contrato",
+    "PaperlessBilling": "Fatura digital",
+    "PaymentMethod": "Forma de pagamento",
+    "MonthlyCharges": "Mensalidade (R$)",
+    "TotalCharges": "Total já pago (R$)",
+    "Churn": "Cancelou",
+}
+
+VALORES_PT: dict[str, dict] = {
+    "InternetService": {"DSL": "DSL", "Fiber optic": "Fibra ótica", "No": "Sem internet"},
+    "Contract": {
+        "Month-to-month": "Mês a mês",
+        "One year": "Um ano",
+        "Two year": "Dois anos",
+    },
+    "PaymentMethod": {
+        "Electronic check": "Débito eletrônico",
+        "Mailed check": "Boleto pelo correio",
+        "Bank transfer (automatic)": "Transferência automática",
+        "Credit card (automatic)": "Cartão de crédito automático",
+    },
+}

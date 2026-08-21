@@ -1,0 +1,12 @@
+# Tema claro de propósito: as figuras de reports/figures/ são geradas sobre a
+# superfície #fcfcfb da paleta de data viz. Com o tema escuro do Streamlit elas
+# apareceriam como retângulos brancos flutuando na página.
+[theme]
+base = "light"
+primaryColor = "#1baf7a"  # igual ao DESTAQUE de graficos.py
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f2f1ec"
+textColor = "#0b0b0b"
+
+[browser]
+gatherUsageStats = false

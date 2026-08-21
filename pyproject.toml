@@ -3,9 +3,10 @@ name = "telco-churn"
 version = "0.1.0"
 description = "Previsão de churn com camada de decisão por valor esperado e dashboard público"
 requires-python = ">=3.12"
+# Só o que o dashboard implantado precisa. JupyterLab e companhia ficam no
+# grupo dev: os notebooks são artefato de análise, não o produto no ar, e
+# arrastá-los para o servidor custaria 11 pacotes e build mais lento.
 dependencies = [
-    "ipykernel>=6.29",
-    "jupyterlab>=4.2",
     "joblib>=1.4",
     "lightgbm>=4.5",
     "matplotlib>=3.9",
@@ -18,6 +19,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29",
+    "jupyterlab>=4.2",
     "pytest>=8.3",
     "ruff>=0.6",
 ]

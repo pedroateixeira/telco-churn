@@ -31,10 +31,12 @@ TINTA_SUAVE = "#52514e"
 MUTADO = "#898781"
 GRADE = "#e1e0d9"
 
-AZUL = "#2a78d6"      # slot 1 — o campeão
-LARANJA = "#eb6834"   # slot 2 — o modelo que serve de contraexemplo
-AGUA = "#1baf7a"      # slot 3
-CINZA_FUNDO = "#c9c8c2"  # os demais modelos, quando são contexto
+# Nomeadas pelo papel, não pela cor: trocar de paleta vira uma linha, e nenhuma
+# constante passa a mentir sobre o próprio nome.
+DESTAQUE = "#1baf7a"     # esmeralda — o campeão, a decisão, o que se quer ler
+ALERTA = "#eb6834"       # laranja — o contraexemplo, o limite, o que alerta
+SECUNDARIA = "#2a78d6"   # azul — a série de comparação
+CINZA_FUNDO = "#c9c8c2"  # contexto: o que está lá para não ser lido de perto
 
 BASE = {
     "figure.facecolor": SUPERFICIE,
@@ -94,7 +96,7 @@ def comparacao_metricas(
             desvio = dados[f"{chave}_desvio"].to_numpy()
             y = np.arange(len(dados))
 
-            cores = [AZUL if nome == campeao else MUTADO for nome in dados["modelo"]]
+            cores = [DESTAQUE if nome == campeao else MUTADO for nome in dados["modelo"]]
 
             ax.errorbar(
                 media, y, xerr=desvio, fmt="none", ecolor=CINZA_FUNDO, elinewidth=2, capsize=0
@@ -169,7 +171,7 @@ def _sobrepostas(
 
     y, p = curvas[campeao]
     x_vals, y_vals = calcular(y, p)
-    ax.plot(x_vals, y_vals, color=AZUL, lw=2.4, zorder=3, label=f"{campeao} (campeão)")
+    ax.plot(x_vals, y_vals, color=DESTAQUE, lw=2.4, zorder=3, label=f"{campeao} (campeão)")
 
 
 def curvas_roc(
@@ -260,7 +262,7 @@ def curvas_calibracao(
             )
             rotulado = True
 
-        for nome, cor, largura in ((destaque_ruim, LARANJA, 2.2), (campeao, AZUL, 2.4)):
+        for nome, cor, largura in ((destaque_ruim, ALERTA, 2.2), (campeao, DESTAQUE, 2.4)):
             if nome not in calibracoes:
                 continue
             curva = calibracoes[nome]
@@ -309,7 +311,7 @@ def comparacao_lift(
             )
             rotulado = True
 
-        for nome, cor, largura in ((baseline, MUTADO, 2), (campeao, AZUL, 2.4)):
+        for nome, cor, largura in ((baseline, MUTADO, 2), (campeao, DESTAQUE, 2.4)):
             lift = lifts[nome]
             rotulo = f"{nome} (campeão)" if nome == campeao else nome
             axes[0].plot(
@@ -389,8 +391,8 @@ def ablacao_total_charges(
                 )
                 ax.plot([v_com[i], v_sem[i]], [i, i], color=CINZA_FUNDO, lw=1.6, zorder=1)
 
-            ax.scatter(v_com, y, s=58, color=AZUL, zorder=3, label="com TotalCharges")
-            ax.scatter(v_sem, y, s=58, color=LARANJA, zorder=3, label="sem TotalCharges")
+            ax.scatter(v_com, y, s=58, color=DESTAQUE, zorder=3, label="com TotalCharges")
+            ax.scatter(v_sem, y, s=58, color=ALERTA, zorder=3, label="sem TotalCharges")
 
             ax.set_yticks(y, modelos, fontsize=9)
             ax.set_title(titulo, fontsize=11, color=TINTA, pad=8)
@@ -410,7 +412,7 @@ def ablacao_total_charges(
 
 def efeito_class_weight(calibracoes: dict[str, pd.DataFrame], metricas: pd.DataFrame) -> Figure:
     """A armadilha do balanceamento: o ranking não muda, a probabilidade desanda."""
-    cores = [AZUL, LARANJA, AGUA]
+    cores = [DESTAQUE, ALERTA, SECUNDARIA]
 
     with _estilo():
         fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6))
@@ -440,9 +442,9 @@ def efeito_class_weight(calibracoes: dict[str, pd.DataFrame], metricas: pd.DataF
         x = np.arange(len(metricas))
         largura = 0.26
         series = [
-            ("roc_auc", "ROC-AUC", AZUL, -largura),
-            ("brier", "Brier", LARANJA, 0.0),
-            ("prob_media", "Prob. média prevista", AGUA, largura),
+            ("roc_auc", "ROC-AUC", DESTAQUE, -largura),
+            ("brier", "Brier", ALERTA, 0.0),
+            ("prob_media", "Prob. média prevista", SECUNDARIA, largura),
         ]
         for chave, rotulo, cor, deslocamento in series:
             axes[1].bar(x + deslocamento, metricas[chave], largura * 0.9, label=rotulo, color=cor)
@@ -530,7 +532,7 @@ def limiar_por_cliente(
             mensalidade[selecionados],
             p[selecionados],
             s=18,
-            color=AZUL,
+            color=DESTAQUE,
             alpha=0.85,
             linewidth=0,
             label=f"Contatar ({selecionados.sum()})",
@@ -538,7 +540,7 @@ def limiar_por_cliente(
         ax.plot(
             mensalidade[ordem],
             limiares[ordem],
-            color=LARANJA,
+            color=ALERTA,
             lw=2.4,
             zorder=3,
             label="Limiar de contato",
@@ -581,8 +583,8 @@ def curva_orcamento(curvas: dict[str, pd.DataFrame], otima: dict) -> Figure:
     destrói valor.
     """
     cores = {
-        "Valor esperado": AZUL,
-        "Probabilidade de churn": AGUA,
+        "Valor esperado": DESTAQUE,
+        "Probabilidade de churn": SECUNDARIA,
         "Regra de contrato": MUTADO,
         "Aleatória": CINZA_FUNDO,
     }
@@ -604,7 +606,7 @@ def curva_orcamento(curvas: dict[str, pd.DataFrame], otima: dict) -> Figure:
         n = otima["n_contatados"]
         if n:
             lucro = otima["lucro_esperado"]
-            ax.plot([n], [lucro], "o", ms=9, color=AZUL, mec=SUPERFICIE, mew=1.6, zorder=4)
+            ax.plot([n], [lucro], "o", ms=9, color=DESTAQUE, mec=SUPERFICIE, mew=1.6, zorder=4)
             ax.annotate(
                 f"ótimo: {n} clientes\nR$ {lucro:,.0f}".replace(",", "."),  # milhar BR
                 xy=(n, lucro),
@@ -666,7 +668,7 @@ def sensibilidade_parametros(tabela: pd.DataFrame, params) -> Figure:
 
         for ax, parametro in zip(axes, parametros, strict=True):
             dados = tabela[tabela["parametro"] == parametro].sort_values("valor")
-            ax.plot(dados["valor"], dados["lucro_esperado"], color=AZUL, lw=2, marker="o", ms=5,
+            ax.plot(dados["valor"], dados["lucro_esperado"], color=DESTAQUE, lw=2, marker="o", ms=5,
                     mec=SUPERFICIE, mew=1.2)
 
             padrao = dados[dados["e_o_padrao"]]
@@ -677,7 +679,7 @@ def sensibilidade_parametros(tabela: pd.DataFrame, params) -> Figure:
                     "o",
                     ms=11,
                     mfc="none",
-                    mec=LARANJA,
+                    mec=ALERTA,
                     mew=2,
                     zorder=4,
                 )
@@ -715,16 +717,16 @@ def piso_do_desconto(tabela: pd.DataFrame, params) -> Figure:
     with _estilo():
         fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.2))
 
-        axes[0].plot(dados["valor"], dados["lucro_esperado"], color=AZUL, lw=2.4, marker="o",
+        axes[0].plot(dados["valor"], dados["lucro_esperado"], color=DESTAQUE, lw=2.4, marker="o",
                      ms=6, mec=SUPERFICIE, mew=1.4)
         if desconto_morte is not None:
-            axes[0].axvline(desconto_morte, color=LARANJA, lw=1.6, ls=(0, (4, 3)), zorder=2)
+            axes[0].axvline(desconto_morte, color=ALERTA, lw=1.6, ls=(0, (4, 3)), zorder=2)
             axes[0].text(
                 desconto_morte,
                 axes[0].get_ylim()[1] * 0.62,
                 f"  lucro zera em {desconto_morte:.0%}\n  antes do limite teórico",
                 fontsize=9.5,
-                color=LARANJA,
+                color=ALERTA,
                 va="center",
             )
         axes[0].axvline(desconto_letal, color=MUTADO, lw=1.4, ls=(0, (2, 3)), zorder=2)
@@ -743,7 +745,7 @@ def piso_do_desconto(tabela: pd.DataFrame, params) -> Figure:
         axes[0].set_ylim(bottom=0)
         _limpar(axes[0], "y")
 
-        axes[1].plot(dados["valor"], dados["piso_do_limiar"], color=LARANJA, lw=2.4, marker="o",
+        axes[1].plot(dados["valor"], dados["piso_do_limiar"], color=ALERTA, lw=2.4, marker="o",
                      ms=6, mec=SUPERFICIE, mew=1.4, label="Piso do limiar")
         axes[1].axhline(1.0, color=MUTADO, lw=1.4, ls=(0, (4, 3)),
                         label="Probabilidade máxima possível")
@@ -762,5 +764,62 @@ def piso_do_desconto(tabela: pd.DataFrame, params) -> Figure:
             y=1.01,
             color=TINTA,
         )
+        fig.tight_layout()
+    return fig
+
+
+def churn_por_categoria(
+    df: pd.DataFrame,
+    coluna: str,
+    alvo: str = "Churn",
+    rotulos: dict | None = None,
+    titulo: str | None = None,
+) -> Figure:
+    """Taxa de churn observada por categoria, contra a taxa base da carteira.
+
+    Portado da célula 39 do notebook de EDA, que já resolvia dois detalhes que
+    valem manter: o `n` de cada categoria vai no rótulo do eixo (em vez de
+    competir com o valor na ponta da barra), e a linha de referência é a taxa
+    base — sem ela, 42,7% não significa nada.
+
+    Barra aqui é a forma certa, ao contrário do gráfico de comparação de
+    modelos: a taxa de churn é uma proporção, tem zero natural, e as categorias
+    diferem o bastante para a escala do zero não achatar nada.
+    """
+    resumo = (
+        df.groupby(coluna, observed=True)[alvo]
+        .agg(taxa_churn="mean", n="size")
+        .sort_values("taxa_churn", ascending=False)
+    )
+    taxa_base = float(df[alvo].mean())
+
+    nomes = [rotulos.get(c, c) if rotulos else c for c in resumo.index.astype(str)]
+    eixo_y = [f"{nome}  (n={n:,})".replace(",", ".") for nome, n in zip(nomes, resumo["n"],
+                                                                       strict=True)]
+
+    with _estilo():
+        fig, ax = plt.subplots(figsize=(7.5, 0.55 * len(resumo) + 1.6))
+
+        # Acima da taxa base é risco; abaixo, o contrário. A cor carrega isso.
+        cores = [DESTAQUE if t >= taxa_base else CINZA_FUNDO for t in resumo["taxa_churn"]]
+        ax.barh(eixo_y, resumo["taxa_churn"], color=cores, height=0.62)
+
+        ax.axvline(
+            taxa_base,
+            color=ALERTA,
+            lw=1.6,
+            ls=(0, (4, 3)),
+            zorder=3,
+            label=f"Taxa base da carteira ({taxa_base:.1%})",
+        )
+        for i, taxa in enumerate(resumo["taxa_churn"]):
+            ax.text(taxa + 0.012, i, f"{taxa:.1%}", va="center", fontsize=9, color=TINTA_SUAVE)
+
+        ax.invert_yaxis()
+        ax.set_xlabel("Taxa de churn observada")
+        ax.set_xlim(0, min(1.0, resumo["taxa_churn"].max() * 1.25))
+        ax.set_title(titulo or coluna, fontsize=11.5, color=TINTA, pad=8)
+        ax.legend(fontsize=9, frameon=False, loc="lower right")
+        _limpar(ax)
         fig.tight_layout()
     return fig

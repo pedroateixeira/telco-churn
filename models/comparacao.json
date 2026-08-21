@@ -15,7 +15,7 @@
       "dif_desvio": 0.017020730183234724,
       "folds_vencidos": 0,
       "n_folds": 15,
-      "segundos_por_ajuste": 0.0008840277907438577
+      "segundos_por_ajuste": 0.00047297506437947353
     },
     {
       "modelo": "Regressão logística",
@@ -24,7 +24,7 @@
       "dif_desvio": 0.0,
       "folds_vencidos": 0,
       "n_folds": 15,
-      "segundos_por_ajuste": 0.01656557759658123
+      "segundos_por_ajuste": 0.015954011069455494
     },
     {
       "modelo": "AdaBoost",
@@ -33,7 +33,7 @@
       "dif_desvio": 0.008483827417575885,
       "folds_vencidos": 5,
       "n_folds": 15,
-      "segundos_por_ajuste": 0.7015227945987135
+      "segundos_por_ajuste": 0.6780796194022211
     },
     {
       "modelo": "XGBoost",
@@ -42,7 +42,7 @@
       "dif_desvio": 0.008708107875316487,
       "folds_vencidos": 11,
       "n_folds": 15,
-      "segundos_por_ajuste": 0.23369466086539128
+      "segundos_por_ajuste": 0.22607107500856122
     },
     {
       "modelo": "LightGBM",
@@ -51,7 +51,7 @@
       "dif_desvio": 0.01021716493050624,
       "folds_vencidos": 4,
       "n_folds": 15,
-      "segundos_por_ajuste": 0.6137967916709992
+      "segundos_por_ajuste": 0.5927541500655934
     },
     {
       "modelo": "Ensemble (votação)",
@@ -60,7 +60,7 @@
       "dif_desvio": 0.006340282552914771,
       "folds_vencidos": 15,
       "n_folds": 15,
-      "segundos_por_ajuste": 1.528345755538127
+      "segundos_por_ajuste": 1.4935862500065318
     },
     {
       "modelo": "Ensemble (stacking)",
@@ -69,7 +69,7 @@
       "dif_desvio": 0.005532330661521272,
       "folds_vencidos": 14,
       "n_folds": 15,
-      "segundos_por_ajuste": 8.771426797258512
+      "segundos_por_ajuste": 8.457381652939754
     }
   ],
   "cv_com_total_charges": [
