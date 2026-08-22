@@ -2,7 +2,11 @@
 
 Previsão de cancelamento (churn) de clientes de telecomunicações, com uma camada de decisão que traduz probabilidade em recomendação de campanha, e um dashboard público.
 
-> ⚠️ **Projeto em construção.** Hoje o repositório contém a análise exploratória. O modelo, a camada de decisão e o dashboard entram nas fases seguintes — o roteiro completo está em [Estado do projeto](#estado-do-projeto). Este README será reescrito quando o dashboard estiver no ar.
+### ▶️ [Abrir o dashboard](https://telco-churn-dashboard-pagtx.streamlit.app/)
+
+Simulador de campanha de retenção: segmentos de risco, simulador individual, quantos clientes contatar e a metodologia por trás do número.
+
+> ⚠️ **Projeto em construção.** O dashboard está no ar e as fases 0 a 5 estão concluídas. Faltam testes automatizados, integração contínua e a reescrita final deste README — o roteiro está em [Estado do projeto](#estado-do-projeto).
 
 ## O problema
 
@@ -75,11 +79,11 @@ Requer [uv](https://docs.astral.sh/uv/) e Python 3.12. O `uv sync` lê o `uv.loc
 ## Estado do projeto
 
 - [x] **Fase 0** — Repositório, ambiente reprodutível e licença
-- [ ] **Fase 1** — Fechar a EDA: os cinco achados escritos
-- [ ] **Fase 2** — Do notebook ao pacote `src/`
-- [ ] **Fase 3** — Modelagem: baseline → regressão logística → LightGBM, com calibração
-- [ ] **Fase 4** — Camada de decisão por valor esperado
-- [ ] **Fase 5** — Dashboard Streamlit
+- [x] **Fase 1** — Fechar a EDA: os cinco achados escritos
+- [x] **Fase 2** — Do notebook ao pacote `src/`
+- [x] **Fase 3** — Modelagem: baseline → regressão logística → LightGBM, com calibração
+- [x] **Fase 4** — Camada de decisão por valor esperado
+- [x] **Fase 5** — Dashboard Streamlit — [no ar](https://telco-churn-dashboard-pagtx.streamlit.app/)
 - [ ] **Fase 6** — Testes e integração contínua
 - [ ] **Fase 7** — README final e deploy público
 
